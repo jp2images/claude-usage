@@ -1,0 +1,10 @@
+# Built binary
+claude-usage
+claude-usage.exe
+
+# IDE
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
