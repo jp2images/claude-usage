@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install Fyne dependencies
+        run: brew install glfw
+
+      - name: Build
+        run: go build -o ClaudeUsage .
+
+      - name: Zip binary
+        run: zip ClaudeUsage-${{ github.ref_name }}-macos.zip ClaudeUsage
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ClaudeUsage-${{ github.ref_name }}-macos.zip
+          generate_release_notes: true
