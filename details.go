@@ -12,7 +12,7 @@ import (
 )
 
 func showDetailsWindow() {
-	w := fyneApp.NewWindow("Claude Code Usage — History")
+	w := fyneApp.NewWindow("Claude Usage — History")
 	w.Resize(fyne.NewSize(640, 560))
 
 	var refresh func()
@@ -21,7 +21,7 @@ func showDetailsWindow() {
 		if err != nil {
 			w.SetContent(container.NewCenter(
 				container.NewVBox(
-					widget.NewLabelWithStyle("Unable to load Claude Code stats", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+					widget.NewLabelWithStyle("Unable to load usage stats", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 					widget.NewLabel(err.Error()),
 					widget.NewButton("Retry", refresh),
 				),
@@ -38,7 +38,7 @@ func showDetailsWindow() {
 func buildStatsContent(refresh func(), stats *StatsCache) fyne.CanvasObject {
 	// ── Header ────────────────────────────────────────────────────────────────
 	refreshBtn := widget.NewButton("↺ Refresh", refresh)
-	titleLabel := widget.NewLabelWithStyle("Claude Code Usage History", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	titleLabel := widget.NewLabelWithStyle("Claude Usage History", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	header := container.NewBorder(nil, nil, nil, refreshBtn, titleLabel)
 
 	// ── Overview ──────────────────────────────────────────────────────────────
