@@ -201,7 +201,15 @@ func (r *thinBarRenderer) Layout(size fyne.Size) {
 	r.bg.Move(fyne.NewPos(0, 0))
 	r.bg.Resize(size)
 	r.fill.Move(fyne.NewPos(0, 0))
-	r.fill.Resize(fyne.NewSize(size.Width*float32(r.bar.value), size.Height))
+
+	value := r.bar.value
+	if value < 0 {
+		value = 0
+	} else if value > 1 {
+		value = 1
+	}
+
+	r.fill.Resize(fyne.NewSize(size.Width*float32(value), size.Height))
 }
 
 func (r *thinBarRenderer) Refresh() {
