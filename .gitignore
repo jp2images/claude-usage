@@ -8,3 +8,9 @@ claude-usage.exe
 
 # macOS
 .DS_Store
+
+# App bundle (built artifact)
+*.app/
+
+# Claude Code settings
+.claude/
