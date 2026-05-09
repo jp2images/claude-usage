@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"time"
 
 	"golang.org/x/crypto/pbkdf2"
 	_ "modernc.org/sqlite"
@@ -86,7 +87,8 @@ func fetchClaudeAPI[T any](url, sessionKey string) (*T, error) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
