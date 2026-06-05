@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"net/url"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -44,7 +45,17 @@ func main() {
 }
 
 func buildContent(refresh func()) fyne.CanvasObject {
+	statusCh := make(chan serviceStatus, 1)
+	go func() { statusCh <- fetchServiceStatus() }()
+
 	usage, limits, err := loadPlanUsage()
+
+	var svc serviceStatus
+	select {
+	case svc = <-statusCh:
+	case <-time.After(3 * time.Second):
+		svc = serviceStatus{Indicator: "unknown", Description: "Status unavailable"}
+	}
 
 	// ── Header ────────────────────────────────────────────────────────────────
 	planLabel := ""
@@ -54,7 +65,14 @@ func buildContent(refresh func()) fyne.CanvasObject {
 	titleLabel := widget.NewLabelWithStyle("Claude Usage", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	planTierLabel := widget.NewLabel(planLabel)
 	refreshBtn := widget.NewButton("↺", refresh)
-	header := container.NewBorder(nil, nil, nil, refreshBtn,
+
+	dot := canvas.NewText("●", statusColor(svc.Indicator))
+	dot.TextSize = 12
+	statusPageURL, _ := url.Parse("https://status.claude.com")
+	statusLink := widget.NewHyperlink("API Status", statusPageURL)
+
+	header := container.NewBorder(nil, nil, nil,
+		container.NewHBox(dot, statusLink, refreshBtn),
 		container.NewHBox(titleLabel, layout.NewSpacer(), planTierLabel),
 	)
 
