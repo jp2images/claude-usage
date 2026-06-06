@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 /// The usage-history window. Counterpart to details.go.
 struct HistoryView: View {
@@ -10,6 +12,10 @@ struct HistoryView: View {
             HStack {
                 Text("Claude Usage History").font(.headline)
                 Spacer()
+                Button { exportCSV() } label: {
+                    Label("Export CSV", systemImage: "square.and.arrow.down")
+                }
+                .disabled(stats == nil)
                 Button { load() } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
@@ -38,6 +44,28 @@ struct HistoryView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Exports the dated activity table shown here. (For complete historical
+    /// trends across all sessions, use scripts/export-usage-csv.sh.)
+    private func exportCSV() {
+        guard let stats else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "claude-usage-daily-activity.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            let csv = Self.dailyActivityCSV(stats)
+            try? csv.data(using: .utf8)?.write(to: url)
+        }
+    }
+
+    private static func dailyActivityCSV(_ stats: StatsCache) -> String {
+        var lines = ["date,messages,sessions,tool_calls"]
+        for d in stats.dailyActivity.sorted(by: { $0.date < $1.date }) {
+            lines.append("\(d.date),\(d.messageCount),\(d.sessionCount),\(d.toolCallCount)")
+        }
+        return lines.joined(separator: "\n") + "\n"
     }
 
     @ViewBuilder

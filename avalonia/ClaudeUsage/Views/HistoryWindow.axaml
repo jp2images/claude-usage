@@ -8,7 +8,10 @@
         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" Text="Claude Usage History"
                        FontWeight="Bold" FontSize="14" VerticalAlignment="Center" />
-            <Button x:Name="RefreshButton" Grid.Column="1" Content="&#x21BA; Refresh" Padding="10,3" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <Button x:Name="ExportButton" Content="Export CSV" Padding="10,3" />
+                <Button x:Name="RefreshButton" Content="&#x21BA; Refresh" Padding="10,3" />
+            </StackPanel>
         </Grid>
 
         <Border DockPanel.Dock="Top" Height="1" Background="#33808080" Margin="0,8" />

@@ -1,7 +1,10 @@
+using System.IO;
+using System.Text;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using ClaudeUsage.Models;
 using ClaudeUsage.Services;
 
@@ -10,10 +13,13 @@ namespace ClaudeUsage.Views;
 /// The usage-history window. Counterpart to details.go.
 public partial class HistoryWindow : Window
 {
+    private StatsCache? _stats;
+
     public HistoryWindow()
     {
         InitializeComponent();
         RefreshButton.Click += (_, _) => Load();
+        ExportButton.Click += OnExport;
         Opened += (_, _) => Load();
     }
 
@@ -25,6 +31,7 @@ public partial class HistoryWindow : Window
         try
         {
             stats = StatsRepository.Load();
+            _stats = stats;
         }
         catch (Exception ex)
         {
@@ -59,6 +66,35 @@ public partial class HistoryWindow : Window
         }
 
         BuildContent(stats);
+    }
+
+    /// Exports the dated activity table shown here. (For complete historical
+    /// trends across all sessions, use scripts/export-usage-csv.sh.)
+    private async void OnExport(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_stats is not { } stats) return;
+        var top = TopLevel.GetTopLevel(this);
+        if (top is null) return;
+
+        var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            SuggestedFileName = "claude-usage-daily-activity.csv",
+            DefaultExtension = "csv",
+            FileTypeChoices = new[] { new FilePickerFileType("CSV") { Patterns = new[] { "*.csv" } } },
+        });
+        if (file is null) return;
+
+        await using var stream = await file.OpenWriteAsync();
+        await using var writer = new StreamWriter(stream);
+        await writer.WriteAsync(DailyActivityCsv(stats));
+    }
+
+    private static string DailyActivityCsv(StatsCache stats)
+    {
+        var sb = new StringBuilder("date,messages,sessions,tool_calls\n");
+        foreach (var d in stats.DailyActivity.OrderBy(d => d.Date, StringComparer.Ordinal))
+            sb.Append($"{d.Date},{d.MessageCount},{d.SessionCount},{d.ToolCallCount}\n");
+        return sb.ToString();
     }
 
     private void BuildContent(StatsCache stats)
