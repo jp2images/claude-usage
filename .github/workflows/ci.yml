@@ -14,10 +14,11 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: go/go.mod
 
       - name: Install Fyne dependencies
         run: brew install glfw
 
       - name: Build
+        working-directory: ./go
         run: go build -o ClaudeUsage .

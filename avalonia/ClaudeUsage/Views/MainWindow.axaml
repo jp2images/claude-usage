@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ClaudeUsage.Views.MainWindow"
+        Title="Claude Usage"
+        Width="440" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+    <Border Padding="12">
+        <StackPanel>
+            <!-- Header -->
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                    <TextBlock Text="Claude Usage" FontWeight="Bold" FontSize="14" />
+                    <TextBlock x:Name="PlanLabel" Foreground="#888888" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                    <TextBlock x:Name="StatusDot" Text="&#x25CF;" FontSize="12" VerticalAlignment="Center" />
+                    <Button x:Name="StatusButton" Content="API Status"
+                            Padding="6,2" Background="Transparent" BorderThickness="0"
+                            Foreground="#0A84FF" Cursor="Hand" />
+                    <Button x:Name="RefreshButton" Content="&#x21BA;" Padding="8,2" />
+                </StackPanel>
+            </Grid>
+
+            <Border Height="1" Background="#33808080" Margin="0,8" />
+
+            <!-- Populated in code-behind (BuildContent). -->
+            <StackPanel x:Name="ContentPanel" />
+        </StackPanel>
+    </Border>
+</Window>
