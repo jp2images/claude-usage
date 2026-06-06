@@ -1,10 +1,22 @@
-# Built binary
-claude-usage
-claude-usage.exe
+# Built binaries (Go) — anchored so they don't match the avalonia/ClaudeUsage/ dir
+/go/ClaudeUsage
+/go/claude-usage
+*.exe
+*.zip
+
+# .NET build output (Windows / WPF)
+[Bb]in/
+[Oo]bj/
+
+# Xcode build output (macOS / SwiftUI)
+DerivedData/
+*.xcuserstate
+xcuserdata/
 
 # IDE
 .idea/
 .vscode/
+.vs/
 
 # macOS
 .DS_Store

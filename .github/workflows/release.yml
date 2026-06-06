@@ -15,19 +15,21 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: go/go.mod
 
       - name: Install Fyne dependencies
         run: brew install glfw
 
       - name: Build
+        working-directory: ./go
         run: go build -o ClaudeUsage .
 
       - name: Zip binary
+        working-directory: ./go
         run: zip ClaudeUsage-${{ github.ref_name }}-macos.zip ClaudeUsage
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ClaudeUsage-${{ github.ref_name }}-macos.zip
+          files: go/ClaudeUsage-${{ github.ref_name }}-macos.zip
           generate_release_notes: true
