@@ -8,8 +8,9 @@
 [Bb]in/
 [Oo]bj/
 
-# Xcode build output (macOS / SwiftUI)
+# Xcode / SwiftPM build output (macOS / SwiftUI)
 DerivedData/
+.build/
 *.xcuserstate
 xcuserdata/
 

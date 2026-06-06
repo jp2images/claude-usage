@@ -11,7 +11,7 @@ and API shapes but use each platform's native UI toolkit:
 |----------|---------|----------|--------|
 | macOS | Go + Fyne | [`go/`](go) | Original, working |
 | Windows + macOS | C# + Avalonia (.NET 8) | [`avalonia/`](avalonia) | Builds & runs on macOS (verified); Windows path to smoke-test |
-| macOS | Swift + SwiftUI | `swiftui/` | Planned |
+| macOS | Swift + SwiftUI | [`swiftui/`](swiftui) | Builds & runs on macOS (verified) |
 
 ## Why multiple codebases instead of one cross-platform binary
 
