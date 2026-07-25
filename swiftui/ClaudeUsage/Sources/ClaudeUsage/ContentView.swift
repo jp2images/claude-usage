@@ -51,7 +51,12 @@ struct ContentView: View {
 
     @ViewBuilder
     private func content(_ usage: PlanUsage) -> some View {
-        if let five = usage.fiveHour {
+        if let session = usage.limits?.first(where: { $0.kind == "session" }) {
+            BarRow(label: "Current Session",
+                   subtext: Formatting.timeUntil(session.resetsAt),
+                   percent: session.percent,
+                   boldLabel: true)
+        } else if let five = usage.fiveHour {
             BarRow(label: "Current Session",
                    subtext: Formatting.timeUntil(five.resetsAt),
                    percent: five.utilization,
@@ -65,8 +70,8 @@ struct ContentView: View {
 
         ForEach(weeklyRows(usage), id: \.label) { row in
             BarRow(label: row.label,
-                   subtext: Formatting.resetDay(row.period.resetsAt),
-                   percent: row.period.utilization)
+                   subtext: Formatting.resetDay(row.resetsAt),
+                   percent: row.percent)
         }
 
         Divider()
@@ -80,14 +85,22 @@ struct ContentView: View {
         }
     }
 
-    private func weeklyRows(_ usage: PlanUsage) -> [(label: String, period: UsagePeriod)] {
+    private func weeklyRows(_ usage: PlanUsage) -> [(label: String, percent: Double, resetsAt: String?)] {
+        let weekly = (usage.limits ?? []).filter { $0.group == "weekly" }
+        if !weekly.isEmpty {
+            return weekly.map { ($0.label, $0.percent, $0.resetsAt) }
+        }
+
+        // Fallback for responses predating the limits array.
         let candidates: [(String, UsagePeriod?)] = [
             ("All Models", usage.sevenDay),
             ("Sonnet", usage.sevenDaySonnet),
             ("Claude Design", usage.sevenDayOmelette),
             ("Opus", usage.sevenDayOpus),
         ]
-        return candidates.compactMap { label, period in period.map { (label, $0) } }
+        return candidates.compactMap { label, period in
+            period.map { (label, $0.utilization, $0.resetsAt) }
+        }
     }
 
     @ViewBuilder

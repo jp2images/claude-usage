@@ -70,7 +70,11 @@ public partial class MainWindow : Window
         PlanLabel.Text = Formatting.FriendlyTier(limits.RateLimitTier);
         ContentPanel.Children.Clear();
 
-        if (usage.FiveHour is { } five)
+        var session = usage.Limits.FirstOrDefault(l => l.Kind == "session");
+        if (session is not null)
+            ContentPanel.Children.Add(
+                BarRow("Current Session", Formatting.TimeUntil(session.ResetsAt), session.Percent, boldLabel: true));
+        else if (usage.FiveHour is { } five)
             ContentPanel.Children.Add(
                 BarRow("Current Session", Formatting.TimeUntil(five.ResetsAt), five.Utilization, boldLabel: true));
         else
@@ -79,16 +83,26 @@ public partial class MainWindow : Window
         ContentPanel.Children.Add(Hairline());
         ContentPanel.Children.Add(SectionLabel("Weekly Limits"));
 
-        foreach (var (label, period) in new (string, UsagePeriod?)[]
-                 {
-                     ("All Models", usage.SevenDay),
-                     ("Sonnet", usage.SevenDaySonnet),
-                     ("Claude Design", usage.SevenDayOmelette),
-                     ("Opus", usage.SevenDayOpus),
-                 })
+        var weekly = usage.Limits.Where(l => l.Group == "weekly").ToList();
+        if (weekly.Count > 0)
         {
-            if (period is null) continue;
-            ContentPanel.Children.Add(BarRow(label, Formatting.ResetDay(period.ResetsAt), period.Utilization));
+            foreach (var limit in weekly)
+                ContentPanel.Children.Add(BarRow(limit.Label, Formatting.ResetDay(limit.ResetsAt), limit.Percent));
+        }
+        else
+        {
+            // Fallback for responses predating the limits array.
+            foreach (var (label, period) in new (string, UsagePeriod?)[]
+                     {
+                         ("All Models", usage.SevenDay),
+                         ("Sonnet", usage.SevenDaySonnet),
+                         ("Claude Design", usage.SevenDayOmelette),
+                         ("Opus", usage.SevenDayOpus),
+                     })
+            {
+                if (period is null) continue;
+                ContentPanel.Children.Add(BarRow(label, Formatting.ResetDay(period.ResetsAt), period.Utilization));
+            }
         }
 
         ContentPanel.Children.Add(Hairline());

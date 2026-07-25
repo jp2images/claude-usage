@@ -22,8 +22,44 @@ struct ExtraUsage: Codable, Sendable {
     var usedAmount: Double? { usedCredits.map { $0 / 100 } }
 }
 
+/// Names the model a scoped limit applies to.
+struct LimitModel: Codable, Sendable {
+    var id: String?
+    var displayName: String?
+}
+
+/// Narrows a limit to one model or surface.
+struct LimitScope: Codable, Sendable {
+    var model: LimitModel?
+}
+
+/// One entry in the API's limits array, which superseded the per-model
+/// `sevenDay*` fields — those now come back null. New models appear here
+/// without a schema change, which is how Fable shows up.
+struct Limit: Codable, Sendable {
+    var kind: String    // session | weekly_all | weekly_scoped
+    var group: String   // session | weekly
+    var percent: Double
+    var resetsAt: String?
+    var scope: LimitScope?
+    var isActive: Bool?
+
+    /// The row heading for this limit.
+    var label: String {
+        switch kind {
+        case "session": return "Current Session"
+        case "weekly_all": return "All Models"
+        default:
+            if let name = scope?.model?.displayName, !name.isEmpty { return name }
+            return "Weekly"
+        }
+    }
+}
+
 /// Response from /api/organizations/{id}/usage.
 struct PlanUsage: Codable, Sendable {
+    var limits: [Limit]?
+
     var fiveHour: UsagePeriod?
     var sevenDay: UsagePeriod?
     var sevenDayOpus: UsagePeriod?

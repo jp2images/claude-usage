@@ -131,18 +131,41 @@ func barRow(label, subtext string, pct float64) fyne.CanvasObject {
 }
 
 func buildSessionRow(usage *PlanUsage) fyne.CanvasObject {
-	p := usage.FiveHour
-	if p == nil {
-		return widget.NewLabel("No session data")
+	var pct float64
+	var resetsAt *string
+	found := false
+	for _, l := range usage.Limits {
+		if l.Kind == "session" {
+			pct, resetsAt, found = l.Percent, l.ResetsAt, true
+			break
+		}
+	}
+	if !found {
+		if usage.FiveHour == nil {
+			return widget.NewLabel("No session data")
+		}
+		pct, resetsAt = usage.FiveHour.Utilization, usage.FiveHour.ResetsAt
 	}
 	left := container.NewVBox(
 		sectionLabel("Current Session"),
-		widget.NewLabel(timeUntil(p.ResetsAt)),
+		widget.NewLabel(timeUntil(resetsAt)),
 	)
-	return container.NewGridWithColumns(2, left, rightBarCol(p.Utilization))
+	return container.NewGridWithColumns(2, left, rightBarCol(pct))
 }
 
 func buildWeeklyRows(usage *PlanUsage) []fyne.CanvasObject {
+	var rows []fyne.CanvasObject
+	for _, l := range usage.Limits {
+		if l.Group != "weekly" {
+			continue
+		}
+		rows = append(rows, barRow(l.Label(), resetDay(l.ResetsAt), l.Percent))
+	}
+	if len(rows) > 0 {
+		return rows
+	}
+
+	// Fallback for responses predating the limits array.
 	type modelEntry struct {
 		label string
 		p     *UsagePeriod
@@ -153,7 +176,6 @@ func buildWeeklyRows(usage *PlanUsage) []fyne.CanvasObject {
 		{"Claude Design", usage.SevenDayOmelette},
 		{"Opus", usage.SevenDayOpus},
 	}
-	var rows []fyne.CanvasObject
 	for _, m := range models {
 		if m.p == nil {
 			continue
