@@ -15,6 +15,7 @@ type UsagePeriod struct {
 }
 
 // ExtraUsage represents the optional purchased extra-credit balance.
+// The API reports MonthlyLimit and UsedCredits in cents, not dollars.
 type ExtraUsage struct {
 	IsEnabled    bool     `json:"is_enabled"`
 	MonthlyLimit *float64 `json:"monthly_limit"`

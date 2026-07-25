@@ -160,7 +160,7 @@ func buildExtraRow(usage *PlanUsage) fyne.CanvasObject {
 		pct = *eu.Utilization
 		subtext = ""
 		if eu.UsedCredits != nil {
-			subtext = fmt.Sprintf("$%.2f spent", *eu.UsedCredits)
+			subtext = fmt.Sprintf("$%.2f spent", *eu.UsedCredits/100)
 		}
 	}
 	return barRow("Extra Usage", subtext, pct)

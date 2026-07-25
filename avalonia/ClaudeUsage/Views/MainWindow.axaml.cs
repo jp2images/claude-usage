@@ -113,7 +113,7 @@ public partial class MainWindow : Window
         if (eu.Utilization is { } util)
         {
             pct = util;
-            subtext = eu.UsedCredits is { } credits ? $"${credits:F2} spent" : "";
+            subtext = eu.UsedAmount is { } spent ? $"${spent:F2} spent" : "";
         }
         return BarRow("Extra Usage", subtext, pct);
     }

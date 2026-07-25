@@ -10,6 +10,7 @@ public sealed class UsagePeriod
 }
 
 /// The optional purchased extra-credit balance.
+/// The API reports MonthlyLimit and UsedCredits in cents, not dollars.
 public sealed class ExtraUsage
 {
     [JsonPropertyName("is_enabled")] public bool IsEnabled { get; set; }
@@ -17,6 +18,9 @@ public sealed class ExtraUsage
     [JsonPropertyName("used_credits")] public double? UsedCredits { get; set; }
     [JsonPropertyName("utilization")] public double? Utilization { get; set; }
     [JsonPropertyName("currency")] public string? Currency { get; set; }
+
+    /// Credits spent, converted from cents to whole currency units.
+    [JsonIgnore] public double? UsedAmount => UsedCredits / 100.0;
 }
 
 /// Response from /api/organizations/{id}/usage.
