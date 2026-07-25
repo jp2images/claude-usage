@@ -9,12 +9,17 @@ struct UsagePeriod: Codable, Sendable {
 }
 
 /// The optional purchased extra-credit balance.
+///
+/// The API reports `monthlyLimit` and `usedCredits` in cents, not dollars.
 struct ExtraUsage: Codable, Sendable {
     var isEnabled: Bool
     var monthlyLimit: Double?
     var usedCredits: Double?
     var utilization: Double?
     var currency: String?
+
+    /// Credits spent, converted from cents to whole currency units.
+    var usedAmount: Double? { usedCredits.map { $0 / 100 } }
 }
 
 /// Response from /api/organizations/{id}/usage.

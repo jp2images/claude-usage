@@ -97,7 +97,7 @@ struct ContentView: View {
         let subtext: String = {
             if let util = eu.utilization {
                 _ = util
-                if let credits = eu.usedCredits { return String(format: "$%.2f spent", credits) }
+                if let spent = eu.usedAmount { return String(format: "$%.2f spent", spent) }
                 return ""
             }
             return eu.isEnabled ? "Enabled — no usage yet" : "Not enabled"
