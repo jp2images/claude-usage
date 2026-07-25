@@ -17,6 +17,10 @@ import (
 
 const autoRefreshInterval = 60 * time.Second
 
+// windowSize is the dashboard's requested size. The height is a floor — Fyne
+// grows the window to the content's minimum height.
+var windowSize = fyne.NewSize(420, 130)
+
 var fyneApp fyne.App
 
 func main() {
@@ -24,11 +28,21 @@ func main() {
 	fyneApp.Settings().SetTheme(compactTheme{})
 
 	w := fyneApp.NewWindow("Claude Usage")
-	w.Resize(fyne.NewSize(420, 130))
+
+	// Pin the window size. When the displays sleep and wake, macOS re-enumerates
+	// monitors and the window server can send a resize carrying backing-store
+	// pixels instead of points; a resizable Fyne window accepts that and lays the
+	// content out at double width. A fixed-size window clamps GLFW's minimum and
+	// maximum to the same value, so the stray resize is snapped back.
+	w.SetFixedSize(true)
+	w.Resize(windowSize)
 
 	var refresh func()
 	refresh = func() {
 		w.SetContent(buildContent(refresh))
+		// Re-assert the size: SetContent lets Fyne's fixed-size bookkeeping grow
+		// but never shrink, so each refresh resets it and heals any stray resize.
+		w.Resize(windowSize)
 	}
 
 	refresh()
