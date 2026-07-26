@@ -220,6 +220,30 @@ func rightBarCol(pct float64) fyne.CanvasObject {
 
 const thinBarHeight = float32(3)
 
+// Fractions of a limit at which the bar switches color.
+const (
+	barWarnThreshold   = 0.80
+	barDangerThreshold = 0.95
+)
+
+var (
+	barWarnColor   = color.NRGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF}
+	barDangerColor = color.NRGBA{R: 0xDC, G: 0x35, B: 0x45, A: 0xFF}
+)
+
+// barColor returns the fill color for a bar at the given fraction: the theme
+// accent below 80%, yellow from 80%, red from 95%.
+func barColor(value float64) color.Color {
+	switch {
+	case value >= barDangerThreshold:
+		return barDangerColor
+	case value >= barWarnThreshold:
+		return barWarnColor
+	default:
+		return theme.Color(theme.ColorNamePrimary)
+	}
+}
+
 // ── ThinBar widget ────────────────────────────────────────────────────────────
 
 type ThinBar struct {
@@ -236,7 +260,7 @@ func newThinBar(value float64) *ThinBar {
 func (b *ThinBar) CreateRenderer() fyne.WidgetRenderer {
 	bg := canvas.NewRectangle(theme.Color(theme.ColorNameDisabledButton))
 	bg.CornerRadius = thinBarHeight / 2
-	fill := canvas.NewRectangle(theme.Color(theme.ColorNamePrimary))
+	fill := canvas.NewRectangle(barColor(b.value))
 	fill.CornerRadius = thinBarHeight / 2
 	return &thinBarRenderer{bar: b, bg: bg, fill: fill}
 }
@@ -268,7 +292,7 @@ func (r *thinBarRenderer) Layout(size fyne.Size) {
 
 func (r *thinBarRenderer) Refresh() {
 	r.bg.FillColor = theme.Color(theme.ColorNameDisabledButton)
-	r.fill.FillColor = theme.Color(theme.ColorNamePrimary)
+	r.fill.FillColor = barColor(r.bar.value)
 	r.bg.Refresh()
 	r.fill.Refresh()
 }

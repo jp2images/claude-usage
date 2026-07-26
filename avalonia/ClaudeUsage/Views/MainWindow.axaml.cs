@@ -186,7 +186,7 @@ public partial class MainWindow : Window
             ColumnDefinitions = new ColumnDefinitions($"{pct.ToString(System.Globalization.CultureInfo.InvariantCulture)}*,{(100 - pct).ToString(System.Globalization.CultureInfo.InvariantCulture)}*"),
         };
 
-        var fill = new Border { Background = Palette.Accent, CornerRadius = new Avalonia.CornerRadius(1.5) };
+        var fill = new Border { Background = Palette.BarBrush(pct), CornerRadius = new Avalonia.CornerRadius(1.5) };
         Grid.SetColumn(fill, 0);
         var track = new Border { Background = Palette.Track, CornerRadius = new Avalonia.CornerRadius(1.5) };
         Grid.SetColumn(track, 1);

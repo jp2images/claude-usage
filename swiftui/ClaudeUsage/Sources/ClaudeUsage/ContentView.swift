@@ -146,15 +146,29 @@ struct BarRow: View {
     }
 }
 
-/// A 3pt rounded progress bar.
+/// A 3pt rounded progress bar. The fill is the accent color below 80% of the
+/// limit, yellow from 80%, red from 95%.
 struct ThinBar: View {
     let value: Double
+
+    private static let warningThreshold = 0.80
+    private static let dangerThreshold = 0.95
+
+    private var fillColor: Color {
+        if value >= Self.dangerThreshold {
+            return Color(red: 220/255, green: 53/255, blue: 69/255)
+        }
+        if value >= Self.warningThreshold {
+            return Color(red: 255/255, green: 193/255, blue: 7/255)
+        }
+        return Color.accentColor
+    }
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.gray.opacity(0.25))
-                Capsule().fill(Color.accentColor)
+                Capsule().fill(fillColor)
                     .frame(width: geo.size.width * min(max(value, 0), 1))
             }
         }
