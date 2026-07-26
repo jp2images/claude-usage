@@ -5,6 +5,10 @@ per-platform apps. Captured for later study.
 
 ---
 
+## Terminology
+
+EDR, Endpoint Detection Response
+
 ## 1. The core problem
 
 The Go/Fyne binary is **blocked on a corporate Windows machine running
