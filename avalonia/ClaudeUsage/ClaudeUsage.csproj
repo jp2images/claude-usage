@@ -12,7 +12,15 @@
     <AssemblyName>ClaudeUsage</AssemblyName>
     <RootNamespace>ClaudeUsage</RootNamespace>
     <Version>0.1.0</Version>
+    <!-- Windows .exe icon. Generated from ../../ClaudeUsage.icon by
+         scripts/build-icons.sh; ignored when the build host isn't Windows. -->
+    <ApplicationIcon>Assets/ClaudeUsage.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same file again, as an Avalonia resource, for the window/taskbar icon. -->
+    <AvaloniaResource Include="Assets/**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.3" />
