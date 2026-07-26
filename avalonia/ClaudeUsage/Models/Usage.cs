@@ -23,9 +23,46 @@ public sealed class ExtraUsage
     [JsonIgnore] public double? UsedAmount => UsedCredits / 100.0;
 }
 
+/// Names the model a scoped limit applies to.
+public sealed class LimitModel
+{
+    [JsonPropertyName("id")] public string? Id { get; set; }
+    [JsonPropertyName("display_name")] public string DisplayName { get; set; } = "";
+}
+
+/// Narrows a limit to one model or surface.
+public sealed class LimitScope
+{
+    [JsonPropertyName("model")] public LimitModel? Model { get; set; }
+}
+
+/// One entry in the API's limits array, which superseded the per-model
+/// seven_day_* fields — those now come back null. New models appear here
+/// without a schema change, which is how Fable shows up.
+public sealed class Limit
+{
+    [JsonPropertyName("kind")] public string Kind { get; set; } = "";   // session | weekly_all | weekly_scoped
+    [JsonPropertyName("group")] public string Group { get; set; } = ""; // session | weekly
+    [JsonPropertyName("percent")] public double Percent { get; set; }
+    [JsonPropertyName("resets_at")] public string? ResetsAt { get; set; }
+    [JsonPropertyName("scope")] public LimitScope? Scope { get; set; }
+    [JsonPropertyName("is_active")] public bool IsActive { get; set; }
+
+    /// The row heading for this limit.
+    [JsonIgnore]
+    public string Label => Kind switch
+    {
+        "session" => "Current Session",
+        "weekly_all" => "All Models",
+        _ => string.IsNullOrEmpty(Scope?.Model?.DisplayName) ? "Weekly" : Scope!.Model!.DisplayName,
+    };
+}
+
 /// Response from /api/organizations/{id}/usage.
 public sealed class PlanUsage
 {
+    [JsonPropertyName("limits")] public List<Limit> Limits { get; set; } = [];
+
     [JsonPropertyName("five_hour")] public UsagePeriod? FiveHour { get; set; }
     [JsonPropertyName("seven_day")] public UsagePeriod? SevenDay { get; set; }
     [JsonPropertyName("seven_day_oauth_apps")] public UsagePeriod? SevenDayOAuthApps { get; set; }

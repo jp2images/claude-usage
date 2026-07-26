@@ -24,8 +24,47 @@ type ExtraUsage struct {
 	Currency     *string  `json:"currency"`
 }
 
+// LimitModel names the model a scoped limit applies to.
+type LimitModel struct {
+	ID          *string `json:"id"`
+	DisplayName string  `json:"display_name"`
+}
+
+// LimitScope narrows a limit to one model or surface.
+type LimitScope struct {
+	Model *LimitModel `json:"model"`
+}
+
+// Limit is one entry in the API's limits array, which superseded the per-model
+// seven_day_* fields — those now come back null. New models appear here without
+// a schema change, which is how Fable shows up.
+type Limit struct {
+	Kind     string      `json:"kind"`  // session | weekly_all | weekly_scoped
+	Group    string      `json:"group"` // session | weekly
+	Percent  float64     `json:"percent"`
+	ResetsAt *string     `json:"resets_at"`
+	Scope    *LimitScope `json:"scope"`
+	IsActive bool        `json:"is_active"`
+}
+
+// Label is the row heading for this limit.
+func (l Limit) Label() string {
+	switch l.Kind {
+	case "session":
+		return "Current Session"
+	case "weekly_all":
+		return "All Models"
+	}
+	if l.Scope != nil && l.Scope.Model != nil && l.Scope.Model.DisplayName != "" {
+		return l.Scope.Model.DisplayName
+	}
+	return "Weekly"
+}
+
 // PlanUsage is the response from /api/organizations/{id}/usage.
 type PlanUsage struct {
+	Limits []Limit `json:"limits"`
+
 	FiveHour          *UsagePeriod `json:"five_hour"`
 	SevenDay          *UsagePeriod `json:"seven_day"`
 	SevenDayOAuthApps *UsagePeriod `json:"seven_day_oauth_apps"`

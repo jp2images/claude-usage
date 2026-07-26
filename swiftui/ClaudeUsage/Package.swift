@@ -7,7 +7,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ClaudeUsage",
-            path: "Sources/ClaudeUsage"
+            path: "Sources/ClaudeUsage",
+            resources: [.copy("Resources/ClaudeUsage.icns")]
         )
     ]
 )

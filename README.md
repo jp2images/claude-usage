@@ -40,3 +40,29 @@ near-identical across implementations.
 All of it requires the **Claude desktop app installed and logged in**.
 
 See each subdirectory's README for build and run instructions.
+
+## App icon
+
+`ClaudeUsage.icon` is the source of truth — an Icon Composer document (layered
+SVGs plus the fills, gradients and materials in `icon.json`). Every platform's
+icon is generated from it:
+
+```bash
+./scripts/build-icons.sh
+```
+
+| Output | Used by |
+|--------|---------|
+| `go/Claude Usage.app/Contents/Resources/Assets.car` | macOS 26 — the light/dark/tinted icon, referenced by `CFBundleIconName` |
+| `go/Claude Usage.app/Contents/Resources/ClaudeUsage.icns` | macOS before 26, via `CFBundleIconFile` |
+| `go/Icon.png` | input image for `fyne package` |
+| `avalonia/ClaudeUsage/Assets/ClaudeUsage.ico` | Windows `.exe` icon (`ApplicationIcon`) and both Avalonia windows |
+| `swiftui/…/Sources/ClaudeUsage/Resources/ClaudeUsage.icns` | Dock icon, set at launch — an SPM executable has no bundle to read it from |
+
+The script compiles the document with Xcode's `actool`, so the raster copies
+match what Icon Composer previews. `actool` caps the `.icns` at 256px because
+macOS 26 reads full-resolution art from `Assets.car`; 256px is also the largest
+size a Windows `.ico` carries, so the Windows copy loses nothing.
+
+`icon-layers/` holds the flat SVG variants of the same mark, for README images
+and favicons.

@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="ClaudeUsage.Views.HistoryWindow"
+        Icon="/Assets/ClaudeUsage.ico"
         Title="Claude Usage — History"
         Width="660" Height="580"
         WindowStartupLocation="CenterOwner">
