@@ -1,11 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -17,97 +13,86 @@ type DailyActivity struct {
 	ToolCallCount int    `json:"toolCallCount"`
 }
 
-type DailyModelTokens struct {
-	Date          string         `json:"date"`
-	TokensByModel map[string]int `json:"tokensByModel"`
-}
-
 type ModelUsage struct {
-	InputTokens              int     `json:"inputTokens"`
-	OutputTokens             int     `json:"outputTokens"`
-	CacheReadInputTokens     int     `json:"cacheReadInputTokens"`
-	CacheCreationInputTokens int     `json:"cacheCreationInputTokens"`
-	WebSearchRequests        int     `json:"webSearchRequests"`
-	CostUSD                  float64 `json:"costUSD"`
+	InputTokens              int `json:"inputTokens"`
+	OutputTokens             int `json:"outputTokens"`
+	CacheReadInputTokens     int `json:"cacheReadInputTokens"`
+	CacheCreationInputTokens int `json:"cacheCreationInputTokens"`
+	// Cache writes are billed per TTL — 1.25x input at 5 minutes, 2x at one
+	// hour — so the two are tracked apart. Their sum is
+	// CacheCreationInputTokens.
+	CacheCreation5mTokens int `json:"cacheCreation5mTokens"`
+	CacheCreation1hTokens int `json:"cacheCreation1hTokens"`
+	WebSearchRequests     int `json:"webSearchRequests"`
+	MessageCount          int `json:"messageCount"`
+
+	// CostUSD is computed from the token counts and this app's pricing table,
+	// not reported by Claude. CostKnown is false for a model with no known
+	// rate, such as one routed through a non-Anthropic provider.
+	CostUSD   float64 `json:"costUsd"`
+	CostKnown bool    `json:"costKnown"`
 }
 
-type LongestSession struct {
+// SessionSummary describes a single session. ActiveMillis counts only the
+// time between messages that arrived close together, so a session left open
+// overnight doesn't report the idle hours as work.
+type SessionSummary struct {
 	SessionID    string `json:"sessionId"`
-	Duration     int64  `json:"duration"`
+	ActiveMillis int64  `json:"activeMillis"`
 	MessageCount int    `json:"messageCount"`
 	Timestamp    string `json:"timestamp"`
 }
 
-type StatsCache struct {
-	Version          int                   `json:"version"`
-	LastComputedDate string                `json:"lastComputedDate"`
+// UsageStats is the aggregate the history window renders, built by walking
+// Claude Code's JSONL transcripts.
+type UsageStats struct {
 	DailyActivity    []DailyActivity       `json:"dailyActivity"`
-	DailyModelTokens []DailyModelTokens    `json:"dailyModelTokens"`
 	ModelUsage       map[string]ModelUsage `json:"modelUsage"`
 	TotalSessions    int                   `json:"totalSessions"`
 	TotalMessages    int                   `json:"totalMessages"`
-	LongestSession   LongestSession        `json:"longestSession"`
+	BusiestSession   SessionSummary        `json:"busiestSession"`
 	FirstSessionDate string                `json:"firstSessionDate"`
-	HourCounts       map[string]int        `json:"hourCounts"`
+	LastActivityDate string                `json:"lastActivityDate"`
 }
 
-func loadStats() (*StatsCache, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("cannot find home directory: %w", err)
-	}
+func loadStats() (*UsageStats, error) {
+	return loadTranscriptStats()
+}
 
-	path := filepath.Join(home, ".claude", "stats-cache.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("stats file not found at %s\n\nMake sure Claude Code is installed and has been used at least once.", path)
-	}
-
-	var stats StatsCache
-	if err := json.Unmarshal(data, &stats); err != nil {
-		return nil, fmt.Errorf("cannot parse stats file: %w", err)
-	}
-
-	// Sort daily activity by date, newest first
-	sort.Slice(stats.DailyActivity, func(i, j int) bool {
-		return stats.DailyActivity[i].Date > stats.DailyActivity[j].Date
-	})
-
-	return &stats, nil
+// friendlyModelNames maps an ID substring to a display name. Order matters:
+// the first match wins, so a more specific version precedes its family.
+var friendlyModelNames = []struct{ match, name string }{
+	{"fable-5", "Fable 5"},
+	{"mythos-5", "Mythos 5"},
+	{"opus-5", "Opus 5"},
+	{"opus-4-8", "Opus 4.8"},
+	{"opus-4-7", "Opus 4.7"},
+	{"opus-4-6", "Opus 4.6"},
+	{"opus-4-5", "Opus 4.5"},
+	{"opus-4-1", "Opus 4.1"},
+	{"opus-4", "Opus 4"},
+	{"opus-3", "Opus 3"},
+	{"sonnet-5", "Sonnet 5"},
+	{"sonnet-4-6", "Sonnet 4.6"},
+	{"sonnet-4-5", "Sonnet 4.5"},
+	{"sonnet-4", "Sonnet 4"},
+	{"sonnet-3-7", "Sonnet 3.7"},
+	{"sonnet-3-5", "Sonnet 3.5"},
+	{"sonnet-3", "Sonnet 3"},
+	{"haiku-4-5", "Haiku 4.5"},
+	{"haiku-4", "Haiku 4"},
+	{"haiku-3-5", "Haiku 3.5"},
+	{"haiku-3", "Haiku 3"},
 }
 
 func friendlyModelName(modelID string) string {
 	id := strings.ToLower(modelID)
-	switch {
-	case strings.Contains(id, "opus-4-6"):
-		return "Opus 4.6"
-	case strings.Contains(id, "sonnet-4-6"):
-		return "Sonnet 4.6"
-	case strings.Contains(id, "haiku-4-5"):
-		return "Haiku 4.5"
-	case strings.Contains(id, "opus-4"):
-		return "Opus 4"
-	case strings.Contains(id, "sonnet-4-5"):
-		return "Sonnet 4.5"
-	case strings.Contains(id, "haiku-4"):
-		return "Haiku 4"
-	case strings.Contains(id, "opus-3-7"):
-		return "Opus 3.7"
-	case strings.Contains(id, "sonnet-3-7"):
-		return "Sonnet 3.7"
-	case strings.Contains(id, "sonnet-3-5"):
-		return "Sonnet 3.5"
-	case strings.Contains(id, "haiku-3-5"):
-		return "Haiku 3.5"
-	case strings.Contains(id, "opus-3"):
-		return "Opus 3"
-	case strings.Contains(id, "sonnet-3"):
-		return "Sonnet 3"
-	case strings.Contains(id, "haiku-3"):
-		return "Haiku 3"
-	default:
-		return modelID
+	for _, m := range friendlyModelNames {
+		if strings.Contains(id, m.match) {
+			return m.name
+		}
 	}
+	return modelID
 }
 
 // formatTokens returns a compact human-readable token count.
@@ -141,6 +126,19 @@ func formatNumber(n int) string {
 	return string(result)
 }
 
+// formatCost renders a computed dollar amount. Cents-level precision is
+// pointless below a cent and misleading above a dollar, so the scale varies.
+func formatCost(usd float64) string {
+	switch {
+	case usd >= 100:
+		return fmt.Sprintf("$%s", formatNumber(int(usd+0.5)))
+	case usd >= 1:
+		return fmt.Sprintf("$%.2f", usd)
+	default:
+		return fmt.Sprintf("$%.4f", usd)
+	}
+}
+
 // formatDate formats a YYYY-MM-DD string to "Jan 2, 2006".
 func formatDate(dateStr string) string {
 	t, err := time.Parse("2006-01-02", dateStr)
@@ -161,16 +159,24 @@ func formatDuration(ms int64) string {
 	return fmt.Sprintf("%dm", m)
 }
 
-// totalTokens sums all model usage into a single ModelUsage.
+// totalTokens sums all model usage into a single ModelUsage. CostKnown on the
+// result is true only when every model contributing tokens had a known rate,
+// so a partial total is never shown as if it were complete.
 func totalTokens(usage map[string]ModelUsage) ModelUsage {
-	var total ModelUsage
+	total := ModelUsage{CostKnown: true}
 	for _, u := range usage {
 		total.InputTokens += u.InputTokens
 		total.OutputTokens += u.OutputTokens
 		total.CacheReadInputTokens += u.CacheReadInputTokens
 		total.CacheCreationInputTokens += u.CacheCreationInputTokens
+		total.CacheCreation5mTokens += u.CacheCreation5mTokens
+		total.CacheCreation1hTokens += u.CacheCreation1hTokens
 		total.WebSearchRequests += u.WebSearchRequests
+		total.MessageCount += u.MessageCount
 		total.CostUSD += u.CostUSD
+		if !u.CostKnown {
+			total.CostKnown = false
+		}
 	}
 	return total
 }

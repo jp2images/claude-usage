@@ -35,7 +35,17 @@ func showDetailsWindow() {
 	w.Show()
 }
 
-func buildStatsContent(refresh func(), stats *StatsCache) fyne.CanvasObject {
+// costLabel renders a computed cost, or a dash when a contributing model has
+// no known rate. Cost is derived from token counts here, not reported by
+// Claude, so it is labelled an estimate wherever it appears.
+func costLabel(u ModelUsage) string {
+	if !u.CostKnown {
+		return "—"
+	}
+	return formatCost(u.CostUSD)
+}
+
+func buildStatsContent(refresh func(), stats *UsageStats) fyne.CanvasObject {
 	// ── Header ────────────────────────────────────────────────────────────────
 	refreshBtn := widget.NewButton("↺ Refresh", refresh)
 	titleLabel := widget.NewLabelWithStyle("Claude Usage History", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -50,10 +60,7 @@ func buildStatsContent(refresh func(), stats *StatsCache) fyne.CanvasObject {
 	}
 
 	totals := totalTokens(stats.ModelUsage)
-	costStr := "—"
-	if totals.CostUSD > 0 {
-		costStr = fmt.Sprintf("$%.4f", totals.CostUSD)
-	}
+	costStr := costLabel(totals)
 
 	overviewGrid := container.NewGridWithColumns(4,
 		dMuted("Messages"), dBold(formatNumber(stats.TotalMessages)),
@@ -61,7 +68,7 @@ func buildStatsContent(refresh func(), stats *StatsCache) fyne.CanvasObject {
 		dMuted("Total tokens"), dBold(formatTokens(totals.InputTokens+totals.OutputTokens)),
 		dMuted("Est. cost"), dBold(costStr),
 		dMuted("Active since"), dBold(firstDate),
-		dMuted("Last updated"), dBold(formatDate(stats.LastComputedDate)),
+		dMuted("Last activity"), dBold(formatDate(stats.LastActivityDate)),
 	)
 	overviewCard := widget.NewCard("Overview", "", overviewGrid)
 
@@ -89,10 +96,7 @@ func buildStatsContent(refresh func(), stats *StatsCache) fyne.CanvasObject {
 		widget.NewSeparator(),
 	}
 	for _, m := range models {
-		mCostStr := "—"
-		if m.usage.CostUSD > 0 {
-			mCostStr = fmt.Sprintf("$%.4f", m.usage.CostUSD)
-		}
+		mCostStr := costLabel(m.usage)
 		modelRows = append(modelRows, container.NewGridWithColumns(5,
 			widget.NewLabel(friendlyModelName(m.id)),
 			dTrailing(formatTokens(m.usage.InputTokens)),
@@ -114,19 +118,23 @@ func buildStatsContent(refresh func(), stats *StatsCache) fyne.CanvasObject {
 	modelCard := widget.NewCard("Token Usage by Model", "", container.NewVBox(modelRows...))
 
 	// ── Cache breakdown ───────────────────────────────────────────────────────
-	cacheGrid := container.NewGridWithColumns(4,
+	// The TTL split is shown because it drives cost: a cache write bills at
+	// 2x the input rate on the 1-hour TTL against 1.25x on the 5-minute one.
+	cachePairs := []fyne.CanvasObject{
 		dMuted("Cache reads"), dBold(formatTokens(totals.CacheReadInputTokens)),
 		dMuted("Cache writes"), dBold(formatTokens(totals.CacheCreationInputTokens)),
-	)
-	if totals.WebSearchRequests > 0 {
-		cacheGrid = container.NewGridWithColumns(4,
-			dMuted("Cache reads"), dBold(formatTokens(totals.CacheReadInputTokens)),
-			dMuted("Cache writes"), dBold(formatTokens(totals.CacheCreationInputTokens)),
-			dMuted("Web searches"), dBold(formatNumber(totals.WebSearchRequests)),
-			widget.NewLabel(""), widget.NewLabel(""),
-		)
+		dMuted("   5-min TTL"), dBold(formatTokens(totals.CacheCreation5mTokens)),
+		dMuted("   1-hour TTL"), dBold(formatTokens(totals.CacheCreation1hTokens)),
 	}
-	cacheCard := widget.NewCard("Cache & Tools", "", cacheGrid)
+	if totals.WebSearchRequests > 0 {
+		cachePairs = append(cachePairs,
+			dMuted("Web searches"), dBold(formatNumber(totals.WebSearchRequests)))
+	}
+	// Pad out the last row so the two-pair grid stays aligned.
+	if len(cachePairs)%4 != 0 {
+		cachePairs = append(cachePairs, widget.NewLabel(""), widget.NewLabel(""))
+	}
+	cacheCard := widget.NewCard("Cache & Tools", "", container.NewGridWithColumns(4, cachePairs...))
 
 	// ── Daily activity ────────────────────────────────────────────────────────
 	days := stats.DailyActivity
@@ -154,16 +162,16 @@ func buildStatsContent(refresh func(), stats *StatsCache) fyne.CanvasObject {
 	activityCard := widget.NewCard("Recent Activity", "", container.NewVBox(activityRows...))
 
 	// ── Footer ────────────────────────────────────────────────────────────────
-	longestStr := "—"
-	if stats.LongestSession.MessageCount > 0 {
-		longestStr = fmt.Sprintf("%s messages, %s",
-			formatNumber(stats.LongestSession.MessageCount),
-			formatDuration(stats.LongestSession.Duration),
+	busiestStr := "—"
+	if stats.BusiestSession.MessageCount > 0 {
+		busiestStr = fmt.Sprintf("%s messages, %s active",
+			formatNumber(stats.BusiestSession.MessageCount),
+			formatDuration(stats.BusiestSession.ActiveMillis),
 		)
 	}
 	footer := container.NewHBox(
-		dMuted("Longest session:"),
-		widget.NewLabel(longestStr),
+		dMuted("Busiest session:"),
+		widget.NewLabel(busiestStr),
 		layout.NewSpacer(),
 	)
 

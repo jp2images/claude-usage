@@ -34,7 +34,11 @@ near-identical across implementations.
 
 - **Live plan usage** — read the Claude desktop app's `sessionKey`/`lastActiveOrg`
   cookies, then call `claude.ai/api/organizations/{id}/usage` and `/rate_limits`.
-- **Usage history** — read `~/.claude/stats-cache.json` (written by Claude Code).
+- **Usage history** — walk Claude Code's JSONL transcripts under
+  `~/.claude/projects`, deduplicate them, and aggregate tokens, cost, and daily
+  activity. This replaced `~/.claude/stats-cache.json`, which Claude Code stopped
+  writing; cost is computed from a local pricing table because the cache file
+  never populated its `costUSD` field.
 - **Service status** — the public `status.claude.com` summary.
 
 All of it requires the **Claude desktop app installed and logged in**.
