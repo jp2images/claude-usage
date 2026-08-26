@@ -13,6 +13,7 @@ struct ClaudeUsageApp: App {
         Window("Claude Usage — History", id: "history") {
             HistoryView()
         }
+        .defaultSize(width: 900, height: 820)
     }
 }
 

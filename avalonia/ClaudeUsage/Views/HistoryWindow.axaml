@@ -3,7 +3,8 @@
         x:Class="ClaudeUsage.Views.HistoryWindow"
         Icon="/Assets/ClaudeUsage.ico"
         Title="Claude Usage — History"
-        Width="660" Height="580"
+        Width="900" Height="820"
+        MinWidth="780" MinHeight="640"
         WindowStartupLocation="CenterOwner">
     <DockPanel Margin="12">
         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto">
@@ -12,6 +13,7 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                 <Button x:Name="ExportButton" Content="Export CSV" Padding="10,3" />
                 <Button x:Name="RefreshButton" Content="&#x21BA; Refresh" Padding="10,3" />
+                <Button x:Name="CloseButton" Content="Close" Padding="10,3" IsCancel="True" />
             </StackPanel>
         </Grid>
 

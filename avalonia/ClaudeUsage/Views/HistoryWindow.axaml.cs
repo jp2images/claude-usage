@@ -20,6 +20,7 @@ public partial class HistoryWindow : Window
         InitializeComponent();
         RefreshButton.Click += (_, _) => Load();
         ExportButton.Click += OnExport;
+        CloseButton.Click += (_, _) => Close();
         Opened += (_, _) => Load();
     }
 
@@ -119,8 +120,10 @@ public partial class HistoryWindow : Window
             .ToList();
 
         var rows = new List<string[]>();
+        var modelBrushes = new List<IBrush?>();
         foreach (var (id, u) in models)
         {
+            modelBrushes.Add(Palette.ModelBrush(id));
             rows.Add(new[]
             {
                 Formatting.FriendlyModel(id),
@@ -130,6 +133,7 @@ public partial class HistoryWindow : Window
                 Formatting.CostLabel(u),
             });
         }
+        modelBrushes.Add(null);
         rows.Add(new[]
         {
             "Total",
@@ -142,7 +146,9 @@ public partial class HistoryWindow : Window
             new[] { "Model", "Input", "Output", "Cache Reads", "Cost" },
             rows,
             new[] { false, true, true, true, true },
-            boldLastRow: true)));
+            boldLastRow: true,
+            firstColumnBrushes: modelBrushes,
+            boldColumn: 4)));
 
         // Cache & tools. The TTL split is shown because it drives cost: a cache
         // write bills at 2x the input rate on the 1-hour TTL against 1.25x on
@@ -159,7 +165,7 @@ public partial class HistoryWindow : Window
         ContentPanel.Children.Add(Card("Cache & Tools", KeyValueGrid(cachePairs)));
 
         // Recent activity
-        var days = stats.DailyActivity.Take(10).ToList();
+        var days = stats.DailyActivity.Take(7).ToList();
         var activityRows = days.Select(d => new[]
         {
             Formatting.Date(d.Date),
@@ -194,7 +200,7 @@ public partial class HistoryWindow : Window
     private static Border Card(string title, Control content)
     {
         var stack = new StackPanel { Spacing = 8 };
-        stack.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.Bold });
+        stack.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.Bold, Foreground = Palette.Accent });
         stack.Children.Add(content);
 
         return new Border
@@ -230,33 +236,71 @@ public partial class HistoryWindow : Window
         return grid;
     }
 
-    private static Grid Table(string[] headers, List<string[]> rows, bool[] trailing, bool boldLastRow)
+    /// firstColumnBrushes tints the leading cell of each data row (model family
+    /// colors); boldColumn is bolded on every row.
+    private static Grid Table(
+        string[] headers,
+        List<string[]> rows,
+        bool[] trailing,
+        bool boldLastRow,
+        IReadOnlyList<IBrush?>? firstColumnBrushes = null,
+        int boldColumn = -1)
     {
         var grid = new Grid();
         for (var c = 0; c < headers.Length; c++)
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(c == 0 ? 1.4 : 1, GridUnitType.Star) });
 
-        void AddRow(int r, string[] cells, bool bold)
+        void AddRow(int r, string[] cells, bool bold, IBrush? firstCellBrush, IBrush? background)
         {
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            // Added before the row's cells so it paints behind them: a Grid
+            // draws its children in the order they were added. The negative
+            // margin bleeds the fill into the card padding so the text is not
+            // flush against the edge of the shading.
+            if (background is not null)
+            {
+                var fill = new Border
+                {
+                    Background = background,
+                    Margin = new Avalonia.Thickness(-6, 0),
+                    CornerRadius = new Avalonia.CornerRadius(3),
+                };
+                Grid.SetRow(fill, r);
+                Grid.SetColumn(fill, 0);
+                Grid.SetColumnSpan(fill, headers.Length);
+                grid.Children.Add(fill);
+            }
+
             for (var c = 0; c < headers.Length; c++)
             {
                 var tb = new TextBlock
                 {
                     Text = cells[c],
-                    FontWeight = bold ? FontWeight.Bold : FontWeight.Normal,
+                    FontWeight = bold || c == boldColumn ? FontWeight.Bold : FontWeight.Normal,
                     TextAlignment = trailing[c] ? TextAlignment.Right : TextAlignment.Left,
                     Margin = new Avalonia.Thickness(0, 2, 8, 2),
                 };
+                if (c == 0 && firstCellBrush is not null) tb.Foreground = firstCellBrush;
                 Grid.SetRow(tb, r);
                 Grid.SetColumn(tb, c);
                 grid.Children.Add(tb);
             }
         }
 
-        AddRow(0, headers, bold: true);
+        AddRow(0, headers, bold: true, firstCellBrush: null, background: null);
         for (var i = 0; i < rows.Count; i++)
-            AddRow(i + 1, rows[i], bold: boldLastRow && i == rows.Count - 1);
+        {
+            var isTotals = boldLastRow && i == rows.Count - 1;
+            // The totals row takes the accent tint instead of a stripe, so the
+            // two shadings never stack on the same row.
+            var background = isTotals ? Palette.AccentTint
+                : i % 2 == 0 ? Palette.RowStripe
+                : null;
+            AddRow(i + 1, rows[i], bold: isTotals,
+                firstCellBrush: firstColumnBrushes is not null && i < firstColumnBrushes.Count ? firstColumnBrushes[i] : null,
+                background: background);
+        }
 
         return grid;
     }
