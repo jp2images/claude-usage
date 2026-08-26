@@ -12,6 +12,7 @@ Requires Xcode / the Swift toolchain (built with Swift 6).
 cd swiftui/ClaudeUsage
 swift run            # build and launch
 swift build          # build only
+swift test           # transcript aggregation and pricing tests
 ```
 
 Or open `Package.swift` in **Xcode** (File ▸ Open) or **Rider** and run from there.
@@ -25,15 +26,22 @@ Or open `Package.swift` in **Xcode** (File ▸ Open) or **Rider** and run from t
 | Source | Where | Code |
 |--------|-------|------|
 | Live plan usage | Claude desktop cookies → `claude.ai` API | `Cookies.swift`, `API.swift` |
-| Usage history | `~/.claude/stats-cache.json` | `Stats.swift` |
+| Usage history | `~/.claude/projects/**/*.jsonl` | `Transcripts.swift`, `Pricing.swift` |
 | Service status | `status.claude.com` | `Status.swift` |
+
+Usage history comes from Claude Code's JSONL transcripts, one file per session.
+`Transcripts.swift` walks them, deduplicates the per-content-block assistant
+records, and totals tokens per model; `Pricing.swift` turns those totals into a
+cost estimate. This replaced `~/.claude/stats-cache.json`, which Claude Code
+stopped writing and whose `costUSD` was always 0.
 
 `Cookies.swift` is the macOS-specific seam: it reads "Claude Safe Storage" from
 the Keychain via `/usr/bin/security`, derives the key with PBKDF2 (SHA-1, 1003
 iterations, `saltysalt`) using **CommonCrypto**, and decrypts the `v10`
 AES-128-CBC cookie values (fixed 16-space IV). Cookie rows are read straight from
 the Chromium SQLite store via the system **SQLite3** module. This is a direct
-port of `../go/api_darwin.go`.
+port of the macOS cookie reader; the Avalonia app has the same logic in
+`Services/MacCookieReader.cs`.
 
 Prerequisite: the **Claude desktop app installed and logged in** (it need not be
 running — data is read at rest; only an expired session requires reopening it).

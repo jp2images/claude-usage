@@ -15,23 +15,33 @@ public static class Formatting
         _ => tier,
     };
 
+    /// Maps a model ID to a display name. Order matters: the first match wins,
+    /// so a more specific version precedes its family.
     public static string FriendlyModel(string modelId)
     {
         var id = modelId.ToLowerInvariant();
         return true switch
         {
+            _ when id.Contains("fable-5") => "Fable 5",
+            _ when id.Contains("mythos-5") => "Mythos 5",
+            _ when id.Contains("opus-5") => "Opus 5",
+            _ when id.Contains("opus-4-8") => "Opus 4.8",
+            _ when id.Contains("opus-4-7") => "Opus 4.7",
             _ when id.Contains("opus-4-6") => "Opus 4.6",
-            _ when id.Contains("sonnet-4-6") => "Sonnet 4.6",
-            _ when id.Contains("haiku-4-5") => "Haiku 4.5",
+            _ when id.Contains("opus-4-5") => "Opus 4.5",
+            _ when id.Contains("opus-4-1") => "Opus 4.1",
             _ when id.Contains("opus-4") => "Opus 4",
+            _ when id.Contains("opus-3") => "Opus 3",
+            _ when id.Contains("sonnet-5") => "Sonnet 5",
+            _ when id.Contains("sonnet-4-6") => "Sonnet 4.6",
             _ when id.Contains("sonnet-4-5") => "Sonnet 4.5",
-            _ when id.Contains("haiku-4") => "Haiku 4",
-            _ when id.Contains("opus-3-7") => "Opus 3.7",
+            _ when id.Contains("sonnet-4") => "Sonnet 4",
             _ when id.Contains("sonnet-3-7") => "Sonnet 3.7",
             _ when id.Contains("sonnet-3-5") => "Sonnet 3.5",
-            _ when id.Contains("haiku-3-5") => "Haiku 3.5",
-            _ when id.Contains("opus-3") => "Opus 3",
             _ when id.Contains("sonnet-3") => "Sonnet 3",
+            _ when id.Contains("haiku-4-5") => "Haiku 4.5",
+            _ when id.Contains("haiku-4") => "Haiku 4",
+            _ when id.Contains("haiku-3-5") => "Haiku 3.5",
             _ when id.Contains("haiku-3") => "Haiku 3",
             _ => modelId,
         };
@@ -85,17 +95,40 @@ public static class Formatting
                DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out t);
     }
 
+    /// Renders a computed dollar amount. Cents-level precision is pointless
+    /// below a cent and misleading above a dollar, so the scale varies.
+    public static string Cost(double usd) => usd switch
+    {
+        >= 100 => "$" + Number((long)Math.Round(usd, MidpointRounding.AwayFromZero)),
+        >= 1 => "$" + usd.ToString("F2", CultureInfo.InvariantCulture),
+        _ => "$" + usd.ToString("F4", CultureInfo.InvariantCulture),
+    };
+
+    /// Renders a cost, or a dash when a contributing model has no known rate.
+    /// Cost is derived from token counts here, not reported by Claude, so it is
+    /// labelled an estimate wherever it appears.
+    public static string CostLabel(ModelUsage usage) => usage.CostKnown ? Cost(usage.CostUSD) : "—";
+
+    /// Sums all model usage into a single ModelUsage. CostKnown on the result
+    /// is true only when every model contributing tokens had a known rate, so a
+    /// partial total is never shown as if it were complete. An empty set has no
+    /// known cost either — a transcript set with no assistant records should
+    /// read as a dash, not as $0.0000.
     public static ModelUsage TotalTokens(IReadOnlyDictionary<string, ModelUsage> usage)
     {
-        var total = new ModelUsage();
+        var total = new ModelUsage { CostKnown = usage.Count > 0 };
         foreach (var u in usage.Values)
         {
             total.InputTokens += u.InputTokens;
             total.OutputTokens += u.OutputTokens;
             total.CacheReadInputTokens += u.CacheReadInputTokens;
             total.CacheCreationInputTokens += u.CacheCreationInputTokens;
+            total.CacheCreation5mTokens += u.CacheCreation5mTokens;
+            total.CacheCreation1hTokens += u.CacheCreation1hTokens;
             total.WebSearchRequests += u.WebSearchRequests;
+            total.MessageCount += u.MessageCount;
             total.CostUSD += u.CostUSD;
+            if (!u.CostKnown) total.CostKnown = false;
         }
         return total;
     }

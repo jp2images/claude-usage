@@ -1,6 +1,3 @@
-# Built binaries (Go) — anchored so they don't match the avalonia/ClaudeUsage/ dir
-/go/ClaudeUsage
-/go/claude-usage
 *.exe
 *.zip
 

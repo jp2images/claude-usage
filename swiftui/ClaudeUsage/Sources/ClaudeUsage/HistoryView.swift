@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 /// The usage-history window. Counterpart to details.go.
 struct HistoryView: View {
-    @State private var stats: StatsCache?
+    @State private var stats: UsageStats?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -16,7 +16,7 @@ struct HistoryView: View {
                     Label("Export CSV", systemImage: "square.and.arrow.down")
                 }
                 .disabled(stats == nil)
-                Button { load() } label: {
+                Button { Task { await load() } } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
             }
@@ -34,12 +34,16 @@ struct HistoryView: View {
         }
         .padding(12)
         .frame(minWidth: 660, minHeight: 580)
-        .onAppear(perform: load)
+        .task { await load() }
     }
 
-    private func load() {
+    /// Walking the transcripts takes seconds on a large corpus, so it runs off
+    /// the main actor.
+    private func load() async {
         do {
-            stats = try StatsRepository.load()
+            stats = try await Task.detached(priority: .userInitiated) {
+                try TranscriptReader.load()
+            }.value
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -60,7 +64,7 @@ struct HistoryView: View {
         }
     }
 
-    private static func dailyActivityCSV(_ stats: StatsCache) -> String {
+    private static func dailyActivityCSV(_ stats: UsageStats) -> String {
         var lines = ["date,messages,sessions,tool_calls"]
         for d in stats.dailyActivity.sorted(by: { $0.date < $1.date }) {
             lines.append("\(d.date),\(d.messageCount),\(d.sessionCount),\(d.toolCallCount)")
@@ -73,16 +77,16 @@ struct HistoryView: View {
         VStack(spacing: 8) {
             Text("Unable to load usage stats").fontWeight(.bold)
             Text(message).multilineTextAlignment(.center).foregroundStyle(.secondary)
-            Button("Retry", action: load)
+            Button("Retry") { Task { await load() } }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 24)
     }
 
     @ViewBuilder
-    private func body(for stats: StatsCache) -> some View {
+    private func body(for stats: UsageStats) -> some View {
         let totals = Formatting.totalTokens(stats.modelUsage)
-        let costStr = totals.costUSD > 0 ? String(format: "$%.4f", totals.costUSD) : "—"
+        let costStr = Formatting.cost(totals.costUSD)
 
         VStack(alignment: .leading, spacing: 10) {
             Card(title: "Overview") {
@@ -92,7 +96,7 @@ struct HistoryView: View {
                     ("Total tokens", Formatting.tokens(totals.inputTokens + totals.outputTokens)),
                     ("Est. cost", costStr),
                     ("Active since", Formatting.longDate(stats.firstSessionDate)),
-                    ("Last updated", Formatting.date(stats.lastComputedDate)),
+                    ("Last activity", Formatting.date(stats.lastActivityDate)),
                 ])
             }
 
@@ -109,17 +113,21 @@ struct HistoryView: View {
             }
 
             HStack(spacing: 4) {
-                Text("Longest session:").foregroundStyle(.secondary)
-                Text(longestSession(stats))
+                Text("Busiest session:").foregroundStyle(.secondary)
+                Text(busiestSession(stats))
             }
             .padding(.bottom, 8)
         }
     }
 
     private func cachePairs(_ totals: ModelUsage) -> [(String, String)] {
+        // The TTL split is shown because it drives cost: a cache write bills at
+        // 2x the input rate on the 1-hour TTL against 1.25x on the 5-minute one.
         var pairs = [
             ("Cache reads", Formatting.tokens(totals.cacheReadInputTokens)),
             ("Cache writes", Formatting.tokens(totals.cacheCreationInputTokens)),
+            ("   5-min TTL", Formatting.tokens(totals.cacheCreation5mTokens)),
+            ("   1-hour TTL", Formatting.tokens(totals.cacheCreation1hTokens)),
         ]
         if totals.webSearchRequests > 0 {
             pairs.append(("Web searches", Formatting.number(totals.webSearchRequests)))
@@ -127,13 +135,13 @@ struct HistoryView: View {
         return pairs
     }
 
-    private func longestSession(_ stats: StatsCache) -> String {
-        guard stats.longestSession.messageCount > 0 else { return "—" }
-        return "\(Formatting.number(stats.longestSession.messageCount)) messages, \(Formatting.duration(stats.longestSession.duration))"
+    private func busiestSession(_ stats: UsageStats) -> String {
+        guard stats.busiestSession.messageCount > 0 else { return "—" }
+        return "\(Formatting.number(stats.busiestSession.messageCount)) messages, \(Formatting.duration(stats.busiestSession.activeMillis)) active"
     }
 
     @ViewBuilder
-    private func modelTable(stats: StatsCache, totals: ModelUsage, costStr: String) -> some View {
+    private func modelTable(stats: UsageStats, totals: ModelUsage, costStr: String) -> some View {
         let models = stats.modelUsage.sorted { $0.key > $1.key }
         Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 4) {
             GridRow {
@@ -150,7 +158,7 @@ struct HistoryView: View {
                     Text(Formatting.tokens(u.inputTokens))
                     Text(Formatting.tokens(u.outputTokens))
                     Text(Formatting.tokens(u.cacheReadInputTokens))
-                    Text(u.costUSD > 0 ? String(format: "$%.4f", u.costUSD) : "—")
+                    Text(Formatting.cost(u.costUSD))
                 }
             }
             Divider()

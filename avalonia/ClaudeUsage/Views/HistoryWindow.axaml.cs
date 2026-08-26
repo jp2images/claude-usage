@@ -13,7 +13,7 @@ namespace ClaudeUsage.Views;
 /// The usage-history window. Counterpart to details.go.
 public partial class HistoryWindow : Window
 {
-    private StatsCache? _stats;
+    private UsageStats? _stats;
 
     public HistoryWindow()
     {
@@ -27,10 +27,10 @@ public partial class HistoryWindow : Window
     {
         ContentPanel.Children.Clear();
 
-        StatsCache stats;
+        UsageStats stats;
         try
         {
-            stats = StatsRepository.Load();
+            stats = TranscriptReader.Load();
             _stats = stats;
         }
         catch (Exception ex)
@@ -89,7 +89,7 @@ public partial class HistoryWindow : Window
         await writer.WriteAsync(DailyActivityCsv(stats));
     }
 
-    private static string DailyActivityCsv(StatsCache stats)
+    private static string DailyActivityCsv(UsageStats stats)
     {
         var sb = new StringBuilder("date,messages,sessions,tool_calls\n");
         foreach (var d in stats.DailyActivity.OrderBy(d => d.Date, StringComparer.Ordinal))
@@ -97,10 +97,10 @@ public partial class HistoryWindow : Window
         return sb.ToString();
     }
 
-    private void BuildContent(StatsCache stats)
+    private void BuildContent(UsageStats stats)
     {
         var totals = Formatting.TotalTokens(stats.ModelUsage);
-        var costStr = totals.CostUSD > 0 ? $"${totals.CostUSD:F4}" : "—";
+        var costStr = Formatting.CostLabel(totals);
 
         // Overview
         ContentPanel.Children.Add(Card("Overview", KeyValueGrid(new (string, string)[]
@@ -110,7 +110,7 @@ public partial class HistoryWindow : Window
             ("Total tokens", Formatting.Tokens(totals.InputTokens + totals.OutputTokens)),
             ("Est. cost", costStr),
             ("Active since", Formatting.LongDate(stats.FirstSessionDate)),
-            ("Last updated", Formatting.Date(stats.LastComputedDate)),
+            ("Last activity", Formatting.Date(stats.LastActivityDate)),
         })));
 
         // Token usage by model
@@ -121,14 +121,13 @@ public partial class HistoryWindow : Window
         var rows = new List<string[]>();
         foreach (var (id, u) in models)
         {
-            var mCost = u.CostUSD > 0 ? $"${u.CostUSD:F4}" : "—";
             rows.Add(new[]
             {
                 Formatting.FriendlyModel(id),
                 Formatting.Tokens(u.InputTokens),
                 Formatting.Tokens(u.OutputTokens),
                 Formatting.Tokens(u.CacheReadInputTokens),
-                mCost,
+                Formatting.CostLabel(u),
             });
         }
         rows.Add(new[]
@@ -145,11 +144,15 @@ public partial class HistoryWindow : Window
             new[] { false, true, true, true, true },
             boldLastRow: true)));
 
-        // Cache & tools
+        // Cache & tools. The TTL split is shown because it drives cost: a cache
+        // write bills at 2x the input rate on the 1-hour TTL against 1.25x on
+        // the 5-minute one.
         var cachePairs = new List<(string, string)>
         {
             ("Cache reads", Formatting.Tokens(totals.CacheReadInputTokens)),
             ("Cache writes", Formatting.Tokens(totals.CacheCreationInputTokens)),
+            ("    5-min TTL", Formatting.Tokens(totals.CacheCreation5mTokens)),
+            ("    1-hour TTL", Formatting.Tokens(totals.CacheCreation1hTokens)),
         };
         if (totals.WebSearchRequests > 0)
             cachePairs.Add(("Web searches", Formatting.Number(totals.WebSearchRequests)));
@@ -170,9 +173,10 @@ public partial class HistoryWindow : Window
             new[] { false, true, true, true },
             boldLastRow: false)));
 
-        // Footer
-        var longest = stats.LongestSession.MessageCount > 0
-            ? $"{Formatting.Number(stats.LongestSession.MessageCount)} messages, {Formatting.Duration(stats.LongestSession.Duration)}"
+        // Footer. Ranked by messages, not elapsed time: a session resumed days
+        // later spans more wall clock than a busy one without doing more work.
+        var busiest = stats.BusiestSession.MessageCount > 0
+            ? $"{Formatting.Number(stats.BusiestSession.MessageCount)} messages, {Formatting.Duration(stats.BusiestSession.ActiveMillis)} active"
             : "—";
         var footer = new StackPanel
         {
@@ -180,8 +184,8 @@ public partial class HistoryWindow : Window
             Margin = new Avalonia.Thickness(0, 0, 0, 8),
             Spacing = 4,
         };
-        footer.Children.Add(new TextBlock { Text = "Longest session:", Foreground = Palette.Muted });
-        footer.Children.Add(new TextBlock { Text = longest });
+        footer.Children.Add(new TextBlock { Text = "Busiest session:", Foreground = Palette.Muted });
+        footer.Children.Add(new TextBlock { Text = busiest });
         ContentPanel.Children.Add(footer);
     }
 

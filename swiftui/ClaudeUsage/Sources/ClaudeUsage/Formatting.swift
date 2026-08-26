@@ -12,14 +12,20 @@ enum Formatting {
         }
     }
 
+    /// Maps an ID substring to a display name. Order matters: the first match
+    /// wins, so a more specific version precedes its family.
     static func friendlyModel(_ modelID: String) -> String {
         let id = modelID.lowercased()
         let table: [(String, String)] = [
-            ("opus-4-6", "Opus 4.6"), ("sonnet-4-6", "Sonnet 4.6"), ("haiku-4-5", "Haiku 4.5"),
-            ("opus-4", "Opus 4"), ("sonnet-4-5", "Sonnet 4.5"), ("haiku-4", "Haiku 4"),
-            ("opus-3-7", "Opus 3.7"), ("sonnet-3-7", "Sonnet 3.7"), ("sonnet-3-5", "Sonnet 3.5"),
-            ("haiku-3-5", "Haiku 3.5"), ("opus-3", "Opus 3"), ("sonnet-3", "Sonnet 3"),
-            ("haiku-3", "Haiku 3"),
+            ("fable-5", "Fable 5"), ("mythos-5", "Mythos 5"),
+            ("opus-5", "Opus 5"), ("opus-4-8", "Opus 4.8"), ("opus-4-7", "Opus 4.7"),
+            ("opus-4-6", "Opus 4.6"), ("opus-4-5", "Opus 4.5"), ("opus-4-1", "Opus 4.1"),
+            ("opus-4", "Opus 4"), ("opus-3", "Opus 3"),
+            ("sonnet-5", "Sonnet 5"), ("sonnet-4-6", "Sonnet 4.6"), ("sonnet-4-5", "Sonnet 4.5"),
+            ("sonnet-4", "Sonnet 4"), ("sonnet-3-7", "Sonnet 3.7"), ("sonnet-3-5", "Sonnet 3.5"),
+            ("sonnet-3", "Sonnet 3"),
+            ("haiku-4-5", "Haiku 4.5"), ("haiku-4", "Haiku 4"),
+            ("haiku-3-5", "Haiku 3.5"), ("haiku-3", "Haiku 3"),
         ]
         for (needle, name) in table where id.contains(needle) { return name }
         return modelID
@@ -86,15 +92,36 @@ enum Formatting {
         return f.string(from: target)
     }
 
+    /// Renders a computed cost, or a dash when the rate is unknown. Cents-level
+    /// precision is pointless below a cent and misleading above a dollar, so
+    /// the scale varies.
+    static func cost(_ usd: Double?) -> String {
+        guard let usd else { return "—" }
+        if usd >= 100 { return "$\(number(Int(usd + 0.5)))" }
+        if usd >= 1 { return String(format: "$%.2f", usd) }
+        return String(format: "$%.4f", usd)
+    }
+
+    /// Sums every model's usage into one total. The total cost stays nil unless
+    /// every contributing model had a known rate, so a partial sum is never
+    /// shown as if it were complete. No models at all is unknown rather than
+    /// $0.0000: nothing has been priced.
     static func totalTokens(_ usage: [String: ModelUsage]) -> ModelUsage {
-        var total = ModelUsage()
+        var total = ModelUsage(costUSD: usage.isEmpty ? nil : 0)
         for u in usage.values {
             total.inputTokens += u.inputTokens
             total.outputTokens += u.outputTokens
             total.cacheReadInputTokens += u.cacheReadInputTokens
             total.cacheCreationInputTokens += u.cacheCreationInputTokens
+            total.cacheCreation5mTokens += u.cacheCreation5mTokens
+            total.cacheCreation1hTokens += u.cacheCreation1hTokens
             total.webSearchRequests += u.webSearchRequests
-            total.costUSD += u.costUSD
+            total.messageCount += u.messageCount
+            if let running = total.costUSD, let cost = u.costUSD {
+                total.costUSD = running + cost
+            } else {
+                total.costUSD = nil
+            }
         }
         return total
     }

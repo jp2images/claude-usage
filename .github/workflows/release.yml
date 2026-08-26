@@ -6,30 +6,58 @@ on:
       - 'v*'
 
 jobs:
-  release:
-    runs-on: macos-latest
-    permissions:
-      contents: write
+  build:
+    name: Avalonia (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: macos-latest, rid: osx-arm64 }
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-dotnet@v4
         with:
-          go-version-file: go/go.mod
+          dotnet-version: '8.0.x'
 
-      - name: Install Fyne dependencies
-        run: brew install glfw
+      # Framework-dependent, deliberately. A self-contained single file is
+      # large, statically linked and unsigned — the same shape that got the Go
+      # build blocked by CrowdStrike, and the reason this project moved to
+      # .NET at all. See docs/code-signing-notes.md. Publishing self-contained
+      # to save users a runtime install would walk straight back into it.
+      - name: Publish
+        run: >
+          dotnet publish avalonia/ClaudeUsage/ClaudeUsage.csproj
+          --configuration Release
+          --runtime ${{ matrix.rid }}
+          --self-contained false
+          --output publish
 
-      - name: Build
-        working-directory: ./go
-        run: go build -o ClaudeUsage .
+      # pwsh rather than bash: it ships on both runners, and the Windows one
+      # has no zip on PATH.
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath "ClaudeUsage-${{ github.ref_name }}-${{ matrix.rid }}.zip"
 
-      - name: Zip binary
-        working-directory: ./go
-        run: zip ClaudeUsage-${{ github.ref_name }}-macos.zip ClaudeUsage
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         with:
-          files: go/ClaudeUsage-${{ github.ref_name }}-macos.zip
+          name: ClaudeUsage-${{ matrix.rid }}
+          path: ClaudeUsage-${{ github.ref_name }}-${{ matrix.rid }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip
           generate_release_notes: true

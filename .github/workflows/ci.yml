@@ -7,18 +7,41 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  # The csproj targets plain net8.0 and handles OS differences at runtime, so
+  # the matrix is what actually holds that claim honest.
+  avalonia:
+    name: Avalonia (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing shouldn't hide the state of the other two.
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build
+        working-directory: ./avalonia
+        run: dotnet build ClaudeUsage.sln --configuration Release
+
+      - name: Test
+        working-directory: ./avalonia
+        run: dotnet test ClaudeUsage.sln --configuration Release --no-build
+
+  swiftui:
+    name: SwiftUI (macOS)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go/go.mod
-
-      - name: Install Fyne dependencies
-        run: brew install glfw
-
       - name: Build
-        working-directory: ./go
-        run: go build -o ClaudeUsage .
+        working-directory: ./swiftui/ClaudeUsage
+        run: swift build --build-tests
+
+      - name: Test
+        working-directory: ./swiftui/ClaudeUsage
+        run: swift test
