@@ -95,14 +95,12 @@ public static class Formatting
                DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out t);
     }
 
-    /// Renders a computed dollar amount. Cents-level precision is pointless
-    /// below a cent and misleading above a dollar, so the scale varies.
-    public static string Cost(double usd) => usd switch
-    {
-        >= 100 => "$" + Number((long)Math.Round(usd, MidpointRounding.AwayFromZero)),
-        >= 1 => "$" + usd.ToString("F2", CultureInfo.InvariantCulture),
-        _ => "$" + usd.ToString("F4", CultureInfo.InvariantCulture),
-    };
+    /// Renders a computed dollar amount. Always two decimals: these sit in a
+    /// column, and one precision throughout scans far better than three. A
+    /// sub-cent amount rounds to $0.00, which is the right trade — it is a
+    /// rounding artefact, not the unknown rate the dash means.
+    public static string Cost(double usd) =>
+        "$" + usd.ToString("N2", CultureInfo.InvariantCulture);
 
     /// Renders a cost, or a dash when a contributing model has no known rate.
     /// Cost is derived from token counts here, not reported by Claude, so it is

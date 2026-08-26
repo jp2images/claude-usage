@@ -92,14 +92,19 @@ enum Formatting {
         return f.string(from: target)
     }
 
-    /// Renders a computed cost, or a dash when the rate is unknown. Cents-level
-    /// precision is pointless below a cent and misleading above a dollar, so
-    /// the scale varies.
+    /// Renders a computed cost, or a dash when the rate is unknown. Always two
+    /// decimals: these sit in a column, and one precision throughout scans far
+    /// better than three. A sub-cent amount rounds to $0.00, which is the right
+    /// trade — it is a rounding artefact, not the unknown rate the dash means.
     static func cost(_ usd: Double?) -> String {
         guard let usd else { return "—" }
-        if usd >= 100 { return "$\(number(Int(usd + 0.5)))" }
-        if usd >= 1 { return String(format: "$%.2f", usd) }
-        return String(format: "$%.4f", usd)
+        // Rounded once, into cents, so a value just under a boundary carries
+        // properly — rounding the whole and the fraction separately turns
+        // 0.999 into "$0.100".
+        let cents = (usd * 100).rounded()
+        let whole = Int(cents / 100)
+        let fraction = Int(abs(cents).truncatingRemainder(dividingBy: 100))
+        return String(format: "$%@.%02d", number(whole), fraction)
     }
 
     /// Sums every model's usage into one total. The total cost stays nil unless

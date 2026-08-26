@@ -78,13 +78,7 @@ struct PricingTests {
         #expect(Pricing.cost(for: "some-other-provider/model", usage: usage) == nil)
     }
 
-    @Test("An unknown cost renders as a dash, and the scale follows the amount")
-    func costFormatting() {
-        #expect(Formatting.cost(nil) == "—")
-        #expect(Formatting.cost(0.1234) == "$0.1234")
-        #expect(Formatting.cost(12.345) == "$12.35")
-        #expect(Formatting.cost(1108.85) == "$1,109")
-    }
+    // Cost rendering lives in the "Cost formatting" suite.
 
     @Test("A specific model version beats its family in the name table")
     func friendlyModelNames() {
