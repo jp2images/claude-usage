@@ -28,13 +28,32 @@ needed when you **publish** a self-contained artifact:
 dotnet publish -c Release -r win-x64 --self-contained false
 ```
 
+## Tests
+
+`ClaudeUsage.Tests` (xUnit) covers the transcript reader and the pricing table.
+`avalonia/ClaudeUsage.sln` holds both projects:
+
+```bash
+cd avalonia
+dotnet test
+```
+
 ## How it gets data
 
 | Source | Where | Code |
 |--------|-------|------|
 | Live plan usage | Claude desktop cookies → `claude.ai` API | `Services/ClaudeCookies.cs` + `Windows/MacCookieReader.cs`, `Services/UsageApi.cs` |
-| Usage history | `~/.claude/stats-cache.json` | `Services/StatsRepository.cs` |
+| Usage history | `~/.claude/projects/**/*.jsonl` | `Services/TranscriptReader.cs`, `Services/Pricing.cs` |
 | Service status | `status.claude.com` | `Services/ServiceStatusClient.cs` |
+
+Usage history comes from Claude Code's JSONL transcripts, not from
+`~/.claude/stats-cache.json` — Claude Code stopped writing that file, and its
+`costUSD` field was always 0. `TranscriptReader` deduplicates the repeated
+assistant records Claude Code writes per streamed content block, and
+`Pricing` computes cost from a local rate table. A model with no entry in that
+table shows a dash rather than a dollar figure. The aggregate is cached under
+the platform cache directory against a fingerprint of the transcript file set,
+so an unchanged set is not re-read.
 
 ### The one OS-divergent piece
 `ClaudeCookies.Read()` dispatches at runtime:
