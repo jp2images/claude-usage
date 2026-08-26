@@ -73,7 +73,7 @@ struct RateLimits: Codable, Sendable {
     var rateLimitTier: String
 }
 
-// MARK: - Usage history (~/.claude/stats-cache.json)
+// MARK: - Usage history (Claude Code's JSONL transcripts)
 
 struct DailyActivity: Codable, Sendable {
     var date: String
@@ -83,43 +83,45 @@ struct DailyActivity: Codable, Sendable {
 }
 
 struct ModelUsage: Codable, Sendable {
-    var inputTokens: Int
-    var outputTokens: Int
-    var cacheReadInputTokens: Int
-    var cacheCreationInputTokens: Int
-    var webSearchRequests: Int
-    var costUSD: Double
+    var inputTokens = 0
+    var outputTokens = 0
+    var cacheReadInputTokens = 0
+    var cacheCreationInputTokens = 0
+    /// Cache writes are billed per TTL — 1.25x input at five minutes, 2x at one
+    /// hour — so the two are tracked apart. Their sum is
+    /// `cacheCreationInputTokens`.
+    var cacheCreation5mTokens = 0
+    var cacheCreation1hTokens = 0
+    var webSearchRequests = 0
+    var messageCount = 0
 
-    // Defaults so a missing field in the JSON doesn't fail decoding.
-    init(inputTokens: Int = 0, outputTokens: Int = 0, cacheReadInputTokens: Int = 0,
-         cacheCreationInputTokens: Int = 0, webSearchRequests: Int = 0, costUSD: Double = 0) {
-        self.inputTokens = inputTokens
-        self.outputTokens = outputTokens
-        self.cacheReadInputTokens = cacheReadInputTokens
-        self.cacheCreationInputTokens = cacheCreationInputTokens
-        self.webSearchRequests = webSearchRequests
-        self.costUSD = costUSD
-    }
+    /// Computed from the token counts and this app's pricing table, not
+    /// reported by Claude. nil for a model with no known rate, such as one
+    /// routed through a non-Anthropic provider; the UI shows a dash rather than
+    /// a number that would look authoritative.
+    var costUSD: Double?
 }
 
-struct LongestSession: Codable, Sendable {
-    var duration: Int
-    var messageCount: Int
-
-    init(duration: Int = 0, messageCount: Int = 0) {
-        self.duration = duration
-        self.messageCount = messageCount
-    }
+/// One session's extent. `activeMillis` counts only the time between messages
+/// that arrived close together, so a session left open overnight doesn't report
+/// the idle hours as work.
+struct SessionSummary: Codable, Sendable {
+    var sessionID = ""
+    var activeMillis = 0
+    var messageCount = 0
+    var timestamp = ""
 }
 
-struct StatsCache: Codable, Sendable {
-    var lastComputedDate: String
-    var dailyActivity: [DailyActivity]
-    var modelUsage: [String: ModelUsage]
-    var totalSessions: Int
-    var totalMessages: Int
-    var longestSession: LongestSession
-    var firstSessionDate: String
+/// The aggregate the history window renders, built by walking Claude Code's
+/// JSONL transcripts.
+struct UsageStats: Codable, Sendable {
+    var dailyActivity: [DailyActivity] = []
+    var modelUsage: [String: ModelUsage] = [:]
+    var totalSessions = 0
+    var totalMessages = 0
+    var busiestSession = SessionSummary()
+    var firstSessionDate = ""
+    var lastActivityDate = ""
 }
 
 // MARK: - Service status (status.claude.com)
