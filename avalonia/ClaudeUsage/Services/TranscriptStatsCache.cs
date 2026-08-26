@@ -79,7 +79,14 @@ internal static class TranscriptStatsCache
         }
     }
 
+    /// The filename carries the implementation. All three ports write the same
+    /// kind of aggregate under the same app directory, and their field names
+    /// differ only in case (costUsd against Swift's costUSD), so a shared
+    /// filename would let one decode another's JSON and silently read every
+    /// cost as absent. LocalApplicationData happens to resolve elsewhere than
+    /// the Go and Swift cache directory on macOS, but that is the runtime's
+    /// choice, not a guarantee to build on.
     private static string CachePath() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ClaudeUsage", "transcript-stats.json");
+        "ClaudeUsage", "transcript-stats-dotnet.json");
 }

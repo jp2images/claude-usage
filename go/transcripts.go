@@ -436,7 +436,12 @@ func statsCachePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "ClaudeUsage", "transcript-stats.json"), nil
+	// The filename carries the implementation. All three ports write the same
+	// kind of aggregate under the same app directory, and on macOS the Go and
+	// Swift cache directories are the same place — sharing one filename would
+	// have them decode each other's JSON, whose field names differ only in
+	// case (costUsd against costUSD), and silently read every cost as absent.
+	return filepath.Join(dir, "ClaudeUsage", "transcript-stats-go.json"), nil
 }
 
 func readStatsCache(fingerprint string) *UsageStats {
