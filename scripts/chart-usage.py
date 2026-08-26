@@ -16,18 +16,23 @@ OUT = sys.argv[2] if len(sys.argv) > 2 else "exports/usage-trend.svg"
 
 # model family -> color
 COLORS = {
+    "fable": "#e8833a",
     "opus": "#b45ad6",
     "sonnet": "#0a84ff",
     "haiku": "#28a745",
     "other": "#888888",
 }
 
+# Checked in order, so a model matching two names lands in the first.
+FAMILIES = ("fable", "mythos", "opus", "sonnet", "haiku")
+
 
 def family(model: str) -> str:
     m = model.lower()
-    for fam in ("opus", "sonnet", "haiku"):
+    for fam in FAMILIES:
         if fam in m:
-            return fam
+            # Mythos shares Fable's rate and colour.
+            return "fable" if fam == "mythos" else fam
     return "other"
 
 
@@ -40,8 +45,10 @@ with open(IN, newline="") as f:
 dates = sorted(data)
 if not dates:
     sys.exit("no data in " + IN)
-families = [fam for fam in ("opus", "sonnet", "haiku", "other")
-           if any(data[d].get(fam) for d in dates)]
+# Drawn in COLORS order, which fixes the stacking order. Deriving the list
+# from COLORS rather than repeating it keeps a newly added family from being
+# dropped from the chart while still being counted into the data.
+families = [fam for fam in COLORS if any(data[d].get(fam) for d in dates)]
 
 # ── layout ────────────────────────────────────────────────────────────────────
 W, H = 1100, 480
