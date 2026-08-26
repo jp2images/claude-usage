@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -172,6 +173,56 @@ func TestCostIsComputedPerModel(t *testing.T) {
 	// 1M output at $25 + 10 input at $5/M + 100 cache reads at $0.50/M.
 	if u.CostUSD < 25 || u.CostUSD > 25.001 {
 		t.Errorf("CostUSD = %g, want ~25", u.CostUSD)
+	}
+}
+
+func TestOversizedLineIsSkippedNotFatal(t *testing.T) {
+	// An overlong line must be dropped the way a malformed one is. Failing the
+	// read instead would blank the whole history window over one bad record.
+	huge := `{"type":"assistant","padding":"` + strings.Repeat("x", 2*maxTranscriptLine) + `"}`
+
+	stats := scanLines(t, []string{
+		assistantRecord("msg-1", "req-1", "claude-opus-5", "2026-08-20T12:00:00.000Z", "s1", 100, 0, 0),
+		huge,
+		assistantRecord("msg-2", "req-2", "claude-opus-5", "2026-08-20T12:00:01.000Z", "s1", 100, 0, 0),
+	})
+
+	// The records on either side of the oversized line must both survive.
+	if stats.TotalMessages != 2 {
+		t.Errorf("TotalMessages = %d, want 2", stats.TotalMessages)
+	}
+}
+
+func TestRecordWithUnparseableTimestampIsSkipped(t *testing.T) {
+	// A record that can't be placed in time is skipped outright, so the
+	// overview's message count stays equal to the sum of the daily rows.
+	stats := scanLines(t, []string{
+		`{"type":"assistant","timestamp":"not-a-timestamp","sessionId":"s1","requestId":"r1",` +
+			`"uuid":"u1","message":{"id":"m1","model":"claude-opus-5","content":[],` +
+			`"usage":{"input_tokens":1,"output_tokens":999}}}`,
+		assistantRecord("msg-2", "req-2", "claude-opus-5", "2026-08-20T12:00:00.000Z", "s1", 100, 0, 0),
+	})
+
+	if stats.TotalMessages != 1 {
+		t.Errorf("TotalMessages = %d, want 1", stats.TotalMessages)
+	}
+	var daily int
+	for _, d := range stats.DailyActivity {
+		daily += d.MessageCount
+	}
+	if daily != stats.TotalMessages {
+		t.Errorf("daily rows sum to %d but TotalMessages is %d", daily, stats.TotalMessages)
+	}
+	if u := stats.ModelUsage["claude-opus-5"]; u.OutputTokens != 100 {
+		t.Errorf("OutputTokens = %d, want 100 (undated record was counted)", u.OutputTokens)
+	}
+}
+
+func TestEmptyUsageHasNoKnownCost(t *testing.T) {
+	// With no transcripts read, "$0.0000" would read as a real total. The
+	// history window shows a dash instead.
+	if totalTokens(map[string]ModelUsage{}).CostKnown {
+		t.Error("CostKnown = true for an empty model set, want false")
 	}
 }
 

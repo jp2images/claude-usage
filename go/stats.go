@@ -163,7 +163,9 @@ func formatDuration(ms int64) string {
 // result is true only when every model contributing tokens had a known rate,
 // so a partial total is never shown as if it were complete.
 func totalTokens(usage map[string]ModelUsage) ModelUsage {
-	total := ModelUsage{CostKnown: true}
+	// An empty set has no known cost — reporting $0.00 for "no data yet"
+	// reads as a real total. Rendered as a dash instead.
+	total := ModelUsage{CostKnown: len(usage) > 0}
 	for _, u := range usage {
 		total.InputTokens += u.InputTokens
 		total.OutputTokens += u.OutputTokens

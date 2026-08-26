@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -22,9 +23,9 @@ const assistantMarker = `"type":"assistant"`
 // generates locally. They have no tokens and no cost, so they are skipped.
 const syntheticModel = "<synthetic>"
 
-// maxTranscriptLine caps a single JSONL line. Tool results and attachments can
-// be large, so this is far above a typical line; a file with a longer line is
-// reported rather than silently truncated.
+// maxTranscriptLine caps how much of a single JSONL line is buffered. Tool
+// results and attachments can be large, so this sits far above a typical line;
+// anything longer is skipped rather than held in memory.
 const maxTranscriptLine = 64 * 1024 * 1024
 
 // transcriptRecord is the subset of an assistant record that usage
@@ -146,6 +147,16 @@ func (a *usageAccumulator) add(rec *transcriptRecord) {
 		return
 	}
 
+	// Parsed before anything is counted. A record that can't be placed in time
+	// is malformed, and skipping it here keeps the overview's message count
+	// equal to the sum of the daily rows — counting the tokens but not the day
+	// would leave the two disagreeing with no way to see why.
+	ts, err := time.Parse(time.RFC3339Nano, rec.Timestamp)
+	if err != nil {
+		return
+	}
+	ts = ts.Local()
+
 	u := a.models[model]
 	if u == nil {
 		u = &ModelUsage{}
@@ -178,12 +189,6 @@ func (a *usageAccumulator) add(rec *transcriptRecord) {
 			toolCalls++
 		}
 	}
-
-	ts, err := time.Parse(time.RFC3339Nano, rec.Timestamp)
-	if err != nil {
-		return
-	}
-	ts = ts.Local()
 
 	if a.first.IsZero() || ts.Before(a.first) {
 		a.first = ts
@@ -280,15 +285,22 @@ func scanTranscript(path string, acc *usageAccumulator) error {
 	}
 	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 256*1024), maxTranscriptLine)
-
+	reader := bufio.NewReaderSize(f, 256*1024)
 	marker := []byte(assistantMarker)
-	for scanner.Scan() {
-		line := scanner.Bytes()
+
+	for {
+		line, tooLong, err := readLine(reader)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 		// Most lines are user turns, attachments, or bookkeeping. A substring
-		// test skips them without paying for a JSON parse.
-		if !bytes.Contains(line, marker) {
+		// test skips them without paying for a JSON parse. An overlong line is
+		// dropped the same way a malformed one is — one bad record shouldn't
+		// take the rest of the history with it.
+		if tooLong || !bytes.Contains(line, marker) {
 			continue
 		}
 		var rec transcriptRecord
@@ -301,8 +313,47 @@ func scanTranscript(path string, acc *usageAccumulator) error {
 		}
 		acc.add(&rec)
 	}
+}
 
-	return scanner.Err()
+// readLine returns the next line without its terminator. A line longer than
+// maxTranscriptLine is consumed and reported rather than buffered, so one
+// oversized record can neither exhaust memory nor abort the walk.
+func readLine(r *bufio.Reader) ([]byte, bool, error) {
+	var buf []byte
+	tooLong := false
+
+	for {
+		chunk, err := r.ReadSlice('\n')
+
+		if err == bufio.ErrBufferFull {
+			// Keep draining to the newline even once the line is written off,
+			// so the next read starts at a record boundary.
+			if !tooLong {
+				if len(buf)+len(chunk) > maxTranscriptLine {
+					tooLong, buf = true, nil
+				} else {
+					buf = append(buf, chunk...)
+				}
+			}
+			continue
+		}
+		if err != nil && err != io.EOF {
+			return nil, false, err
+		}
+
+		if err == io.EOF && len(chunk) == 0 && len(buf) == 0 {
+			if tooLong {
+				return nil, true, nil
+			}
+			return nil, false, io.EOF
+		}
+		if tooLong {
+			return nil, true, nil
+		}
+
+		buf = append(buf, chunk...)
+		return bytes.TrimRight(buf, "\r\n"), false, nil
+	}
 }
 
 // loadTranscriptStats walks Claude Code's JSONL transcripts and aggregates
