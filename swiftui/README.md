@@ -40,7 +40,8 @@ the Keychain via `/usr/bin/security`, derives the key with PBKDF2 (SHA-1, 1003
 iterations, `saltysalt`) using **CommonCrypto**, and decrypts the `v10`
 AES-128-CBC cookie values (fixed 16-space IV). Cookie rows are read straight from
 the Chromium SQLite store via the system **SQLite3** module. This is a direct
-port of `../go/api_darwin.go`.
+port of the macOS cookie reader; the Avalonia app has the same logic in
+`Services/MacCookieReader.cs`.
 
 Prerequisite: the **Claude desktop app installed and logged in** (it need not be
 running — data is read at rest; only an expired session requires reopening it).
