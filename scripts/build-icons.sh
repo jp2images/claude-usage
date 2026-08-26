@@ -10,9 +10,11 @@
 #   avalonia/ClaudeUsage/Assets/ClaudeUsage.ico              Windows .exe and window icon
 #   swiftui/ClaudeUsage/Sources/ClaudeUsage/Resources/ClaudeUsage.icns  Dock icon for `swift run`
 #
-# Requires Xcode (actool, iconutil) and Python 3 with Pillow.
+# Requires Xcode (actool, iconutil) and the .NET SDK (for the .ico writer).
 #
 set -euo pipefail
+
+command -v dotnet >/dev/null || { echo "error: the .NET SDK is required (brew install dotnet)" >&2; exit 1; }
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 source_icon="$repo/ClaudeUsage.icon"
@@ -51,35 +53,9 @@ iconutil -c iconset "$work/ClaudeUsage.icns" -o "$work/ClaudeUsage.iconset"
 cp "$work/ClaudeUsage.iconset/icon_128x128@2x.png" "$repo/go/Icon.png"
 
 mkdir -p "$repo/avalonia/ClaudeUsage/Assets"
-python3 - "$work/ClaudeUsage.iconset" "$repo/avalonia/ClaudeUsage/Assets/ClaudeUsage.ico" <<'PY'
-import sys
-from PIL import Image
-
-iconset, out = sys.argv[1], sys.argv[2]
-
-# Sizes Windows asks for, largest first: Pillow drops any size larger than the
-# image it saves from. Apple renders 16, 32, 128 and 256 itself; the rest are
-# downsampled from 256.
-sizes = [256, 128, 64, 48, 32, 24, 16]
-rendered = {
-    16: "icon_16x16.png",
-    32: "icon_16x16@2x.png",
-    128: "icon_128x128.png",
-    256: "icon_128x128@2x.png",
-}
-
-def frame(size):
-    if size in rendered:
-        return Image.open(f"{iconset}/{rendered[size]}").convert("RGBA")
-    return base.resize((size, size), Image.LANCZOS)
-
-base = frame(256)
-frames = [frame(size) for size in sizes]
-frames[0].save(out, format="ICO", sizes=[(s, s) for s in sizes], append_images=frames[1:])
-
-written = sorted(Image.open(out).info["sizes"])
-print(f"wrote {out} ({', '.join(f'{w}x{h}' for w, h in written)})")
-PY
+dotnet run "$repo/scripts/make-ico.cs" -- \
+    "$work/ClaudeUsage.iconset" \
+    "$repo/avalonia/ClaudeUsage/Assets/ClaudeUsage.ico"
 
 echo "wrote $resources/{Assets.car,ClaudeUsage.icns}"
 echo "wrote $swift_resources/ClaudeUsage.icns"
